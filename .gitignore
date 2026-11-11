@@ -1,0 +1,8 @@
+/core/bin/
+/app/build/
+/app/.build/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.DS_Store
+/dist/
