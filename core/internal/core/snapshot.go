@@ -216,6 +216,7 @@ func (service *Service) toSession(raw claudeidx.Session, scans []*repoScan, agen
 		Start:       raw.Start,
 		Last:        raw.Last,
 		Prompts:     raw.Prompts,
+		Size:        raw.Size,
 		State:       StateIdle,
 		CwdExists:   exists(raw.Cwd),
 	}

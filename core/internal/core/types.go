@@ -45,6 +45,7 @@ type Session struct {
 	Workspace   string       `json:"workspace,omitempty"` // cmux workspace id while live
 	Surface     string       `json:"surface,omitempty"`
 	CwdExists   bool         `json:"cwd_exists"`
+	Size        int64        `json:"size,omitempty"` // transcript bytes on disk (resume re-reads this)
 	Trashed     bool         `json:"trashed,omitempty"`
 	Primary     bool         `json:"primary"` // false when shown on a task only because the session touched that branch
 }

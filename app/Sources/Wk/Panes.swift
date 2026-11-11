@@ -67,38 +67,43 @@ struct TaskDetailView: View {
         if let task = store.selectedTask {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(task.repoLabel).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Chip(text: task.repoLabel)
                             if let ticket = task.ticket { Chip(text: ticket, color: .blue) }
                             if task.isBase { Chip(text: "base") }
                             if task.merged { Chip(text: "merged", color: .green) }
                             if task.gone { Chip(text: "remote deleted", color: .orange) }
                         }
-                        Text(task.branch).font(.title3.weight(.semibold)).textSelection(.enabled)
+                        Text(task.branch)
+                            .font(.system(size: 24, weight: .semibold))
+                            .textSelection(.enabled)
                         if let note = task.note, !note.isEmpty {
                             Label(note, systemImage: "note.text").font(.callout).foregroundStyle(.secondary)
                         }
                     }
+                    actions(task)
                     facts(task)
                     sessions(task)
                     if let detail = store.detail, detail.task.id == task.id {
                         if let changes = detail.changes, !changes.isEmpty {
-                            DetailSection(title: "Uncommitted (\(changes.count))") {
-                                ForEach(changes.prefix(8), id: \.self) { Text($0).font(.system(size: 12, design: .monospaced)).lineLimit(1) }
-                                if changes.count > 8 { Text("… \(changes.count - 8) more").font(.system(size: 12)).foregroundStyle(.secondary) }
+                            DetailCard(title: "Uncommitted (\(changes.count))") {
+                                ForEach(changes.prefix(8), id: \.self) {
+                                    Text($0).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                if changes.count > 8 { Text("… \(changes.count - 8) more").font(.system(size: 12)).foregroundStyle(.tertiary) }
                             }
                         }
                         if let log = detail.log, !log.isEmpty {
-                            DetailSection(title: "Commits") {
-                                ForEach(log, id: \.self) { Text($0).font(.system(size: 12)).lineLimit(1).foregroundStyle(.secondary) }
+                            DetailCard(title: "Commits") {
+                                ForEach(log, id: \.self) { line in CommitLine(line: line) }
                             }
                         }
                     } else {
                         ProgressView().controlSize(.small)
                     }
                 }
-                .padding(14)
+                .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
@@ -106,42 +111,45 @@ struct TaskDetailView: View {
         }
     }
 
+    private func actions(_ task: WkTask) -> some View {
+        HStack(spacing: 8) {
+            Button { store.open(task) } label: { Label("Open", systemImage: "return") }
+                .buttonStyle(.borderedProminent)
+            Button("Single pane  ⌘↵") { store.open(task, single: true) }
+                .buttonStyle(.bordered)
+            Button("All actions  ⌘K") { store.overlay = .actions(taskID: task.id) }
+                .buttonStyle(.bordered)
+        }
+        .controlSize(.large)
+    }
+
     private func facts(_ task: WkTask) -> some View {
-        DetailSection(title: "Where") {
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
-                GridRow {
-                    Text("Folder").foregroundStyle(.secondary)
-                    if let path = task.path, !path.isEmpty {
-                        Text(PathDisplay.collapse(path) + (task.mainWorktree ? "" : "  (worktree)")).textSelection(.enabled)
-                    } else {
-                        Text("not checked out — opening will ask how").foregroundStyle(.secondary)
-                    }
-                }
-                GridRow {
-                    Text("cmux").foregroundStyle(.secondary)
-                    if let workspace = task.workspace {
-                        Text(workspace.title + ((workspace.ports ?? []).isEmpty ? "" : "  · ports \((workspace.ports ?? []).map(String.init).joined(separator: ", "))"))
-                    } else {
-                        Text("not open").foregroundStyle(.secondary)
-                    }
-                }
-                GridRow {
-                    Text("Git").foregroundStyle(.secondary)
-                    Text("\(task.dirty) changed · ↑\(task.ahead) ↓\(task.behind)" + (task.upstream.map { " · \($0)" } ?? ""))
-                }
-                if let envs = task.envBranches, !envs.isEmpty {
-                    GridRow {
-                        Text("Env").foregroundStyle(.secondary)
-                        Text(envs.joined(separator: ", ")).lineLimit(2)
-                    }
+        DetailCard(title: "Where") {
+            FactRow(label: "Folder") {
+                if let path = task.path, !path.isEmpty {
+                    Text(PathDisplay.collapse(path) + (task.mainWorktree ? "" : "  (worktree)")).textSelection(.enabled)
+                } else {
+                    Text("not checked out — opening will ask how").foregroundStyle(.secondary)
                 }
             }
-            .font(.system(size: 13))
+            FactRow(label: "cmux") {
+                if let workspace = task.workspace {
+                    Text(workspace.title + ((workspace.ports ?? []).isEmpty ? "" : "  · ports \((workspace.ports ?? []).map(String.init).joined(separator: ", "))"))
+                } else {
+                    Text("not open").foregroundStyle(.secondary)
+                }
+            }
+            FactRow(label: "Git") {
+                Text("\(task.dirty) changed · ↑\(task.ahead) ↓\(task.behind)" + (task.upstream.map { " · \($0)" } ?? ""))
+            }
+            if let envs = task.envBranches, !envs.isEmpty {
+                FactRow(label: "Env") { Text(envs.joined(separator: ", ")).lineLimit(2) }
+            }
         }
     }
 
     private func sessions(_ task: WkTask) -> some View {
-        DetailSection(title: "Claude sessions (\(task.sessions.count))") {
+        DetailCard(title: "Claude sessions (\(task.sessions.count))") {
             if task.sessions.isEmpty {
                 Text("None yet — ↵ starts one in a new workspace.").font(.system(size: 12)).foregroundStyle(.secondary)
             }
@@ -160,6 +168,24 @@ struct TaskDetailView: View {
     }
 }
 
+/// "abc1234 message (2 days ago)" with the hash picked out, so the list scans like a git log.
+struct CommitLine: View {
+    let line: String
+
+    var body: some View {
+        let parts = line.split(separator: " ", maxSplits: 1)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(parts.first.map(String.init) ?? "")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(Color.accentColor.opacity(0.9))
+            Text(parts.count > 1 ? String(parts[1]) : "")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
 // MARK: Sessions
 
 struct SessionsPane: View {
@@ -169,14 +195,40 @@ struct SessionsPane: View {
         @Bindable var store = store
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                Toggle("Include trash", isOn: $store.includeTrash)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12).padding(.top, 6)
-                    .onChange(of: store.includeTrash) { _, _ in store.searchSessions() }
+                HStack {
+                    // Same pill language as the cleanup filters, instead of a bare checkbox.
+                    Button {
+                        store.includeTrash.toggle()
+                        store.searchSessions()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: store.includeTrash ? "trash.fill" : "trash")
+                            Text("Include trash")
+                            if store.includeTrash {
+                                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                            }
+                        }
+                        .font(.system(size: 12, weight: store.includeTrash ? .semibold : .regular))
+                        .foregroundStyle(store.includeTrash ? .primary : .secondary)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(store.includeTrash ? Color.white.opacity(0.12) : Color.white.opacity(0.04), in: Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(store.includeTrash ? 0.18 : 0.06)))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    if store.sessionsLoading {
+                        ProgressView().controlSize(.small).padding(.leading, 6)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 6).padding(.top, 2).padding(.bottom, 6)
                 if store.sessions.isEmpty {
-                    EmptyState(symbol: "bubble.left.and.bubble.right", title: "No sessions match")
+                    if store.sessionsLoading {
+                        ProgressView("Searching sessions…").controlSize(.small)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        EmptyState(symbol: "bubble.left.and.bubble.right", title: "No sessions match")
+                    }
                 } else {
                     ScrollViewReader { proxy in
                         ScrollView {
@@ -208,36 +260,54 @@ struct SessionDetailView: View {
     var body: some View {
         if let session = store.selectedSession {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        SessionStateIcon(session: session)
-                        Text(session.state.rawValue.capitalized).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-                    }
-                    Text(session.displayTitle).font(.title3.weight(.semibold)).textSelection(.enabled)
-                    if let prompt = session.firstPrompt, prompt != session.displayTitle {
-                        DetailSection(title: "First prompt") { Text(prompt).font(.callout).foregroundStyle(.secondary) }
-                    }
-                    DetailSection(title: "Where") {
-                        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 3) {
-                            GridRow { Text("Folder").foregroundStyle(.secondary); Text(PathDisplay.collapse(session.cwd) + (session.cwdExists ? "" : "  (deleted)")) }
-                            GridRow { Text("Branch").foregroundStyle(.secondary); Text(session.branch) }
-                            if let branches = session.branches, branches.count > 1 {
-                                GridRow { Text("Also on").foregroundStyle(.secondary); Text(branches.filter { $0 != session.branch }.joined(separator: ", ")).lineLimit(3) }
-                            }
-                            GridRow { Text("Started").foregroundStyle(.secondary); Text(session.start.formatted(date: .abbreviated, time: .shortened)) }
-                            GridRow { Text("Last").foregroundStyle(.secondary); Text(session.last.formatted(date: .abbreviated, time: .shortened)) }
-                            GridRow { Text("Prompts").foregroundStyle(.secondary); Text("\(session.prompts)") }
-                            GridRow { Text("ID").foregroundStyle(.secondary); Text(session.id).font(.system(size: 12, design: .monospaced)).textSelection(.enabled) }
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            SessionStateIcon(session: session)
+                            Text(session.state.rawValue.capitalized).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                            if session.trashed == true { Chip(text: "in trash", color: .red) }
                         }
-                        .font(.system(size: 13))
+                        Text(session.displayTitle)
+                            .font(.system(size: 22, weight: .semibold))
+                            .textSelection(.enabled)
+                        if let prompt = session.firstPrompt, prompt != session.displayTitle {
+                            Text(prompt).font(.callout).foregroundStyle(.secondary)
+                        }
                     }
-                    HStack {
-                        Button(session.cwdExists ? "Resume" : "Recreate folder & resume") { store.resume(session, recreate: !session.cwdExists) }
-                            .keyboardShortcut(.defaultAction)
-                        Button("All actions… ⌘K") { store.overlay = .sessionActions(sessionID: session.id) }
+                    HStack(spacing: 8) {
+                        Button { store.resume(session, recreate: !session.cwdExists) } label: {
+                            Label(session.cwdExists ? "Resume" : "Recreate folder & resume", systemImage: "return")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("All actions  ⌘K") { store.overlay = .sessionActions(sessionID: session.id) }
+                            .buttonStyle(.bordered)
+                    }
+                    .controlSize(.large)
+                    DetailCard(title: "Where") {
+                        FactRow(label: "Folder") { Text(PathDisplay.collapse(session.cwd) + (session.cwdExists ? "" : "  (deleted)")).textSelection(.enabled) }
+                        FactRow(label: "Branch") { Text(session.branch) }
+                        if let branches = session.branches, branches.count > 1 {
+                            FactRow(label: "Also on") { Text(branches.filter { $0 != session.branch }.joined(separator: ", ")).lineLimit(3) }
+                        }
+                    }
+                    DetailCard(title: "Session") {
+                        if let size = session.sizeLabel {
+                            FactRow(label: "Weight") {
+                                HStack(spacing: 8) {
+                                    Text(size)
+                                    if let cost = session.resumeCostLabel {
+                                        Text("\(cost) to resume").foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        FactRow(label: "Prompts") { Text("\(session.prompts)") }
+                        FactRow(label: "Started") { Text(session.start.formatted(date: .abbreviated, time: .shortened)) }
+                        FactRow(label: "Last") { Text(session.last.formatted(date: .abbreviated, time: .shortened)) }
+                        FactRow(label: "ID") { Text(session.id).font(.system(size: 12, design: .monospaced)).textSelection(.enabled) }
                     }
                 }
-                .padding(14)
+                .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
@@ -253,7 +323,7 @@ private let cleanupKinds = ["merged", "gone", "missing_worktree", "stale", "orph
 private func cleanupInfo(_ kind: String) -> (symbol: String, color: Color, blurb: String) {
     switch kind {
     case "merged": ("checkmark.seal", .green, "Merged into the base branch. Safe to drop the folder and local branch.")
-    case "gone": ("cloud.slash", .blue, "The branch was deleted on origin, usually after the PR merged.")
+    case "gone": ("icloud.slash", .blue, "The branch was deleted on origin, usually after the PR merged.")
     case "missing_worktree": ("folder.badge.questionmark", .purple, "The folder is gone but git still tracks it; this just prunes the record.")
     case "stale": ("hourglass", .orange, "No commits or Claude activity for a long time.")
     case "orphan_session": ("bubble.left.and.exclamationmark.bubble.right", .pink, "Claude sessions whose folder and branch no longer exist. They go to wk's trash and can be restored.")
@@ -340,9 +410,10 @@ struct CleanupPane: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2, pinnedViews: []) {
-                    ForEach(cleanupKinds.filter { kind in items.contains { $0.kind == kind } }, id: \.self) { kind in
+                    let kinds = cleanupKinds.filter { kind in items.contains { $0.kind == kind } }
+                    ForEach(kinds, id: \.self) { kind in
                         let group = items.filter { $0.kind == kind }
-                        groupHeader(kind, group)
+                        groupHeader(kind, group, first: kind == kinds.first)
                         ForEach(group) { item in
                             row(item)
                                 .id(item.id)
@@ -356,13 +427,14 @@ struct CleanupPane: View {
         }
     }
 
-    private func groupHeader(_ kind: String, _ group: [CleanupItem]) -> some View {
+    private func groupHeader(_ kind: String, _ group: [CleanupItem], first: Bool) -> some View {
         let info = cleanupInfo(kind)
         let ids = Set(group.map(\.id))
         let allSelected = ids.isSubset(of: selected)
+        // No icon here (the filter pills carry it): title and blurb share one flush left edge.
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Label((group.first?.kindLabel ?? kind).uppercased(), systemImage: info.symbol)
+                Text((group.first?.kindLabel ?? kind).uppercased())
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(info.color)
                 Text("\(group.count)").font(.system(size: 12)).foregroundStyle(.tertiary)
@@ -375,7 +447,7 @@ struct CleanupPane: View {
             Text(info.blurb).font(.system(size: 12)).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 10)
-        .padding(.top, 18).padding(.bottom, 6)
+        .padding(.top, first ? 2 : 18).padding(.bottom, 6)
     }
 
     private func row(_ item: CleanupItem) -> some View {
@@ -404,9 +476,7 @@ struct CleanupPane: View {
                 Label(riskText(item), systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 12)).foregroundStyle(.orange)
             }
-            Text(RelativeTime.short(item.last))
-                .font(.system(size: 12).monospacedDigit()).foregroundStyle(.tertiary)
-                .frame(width: 34, alignment: .trailing)
+            TimeLabel(date: item.last)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
         .background(isOn ? Color.accentColor.opacity(0.16) : focused ? Color.white.opacity(0.06) : .clear,
@@ -429,22 +499,23 @@ struct CleanupPane: View {
         let sessions = chosen.filter { $0.kind == "orphan_session" }.count
         let tasks = chosen.count - sessions
         let blocked = !risky.isEmpty && !force
-        return VStack(alignment: .leading, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(chosen.isEmpty ? "Nothing selected" : "\(chosen.count) selected")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold))
                 Text("\(items.filter(\.safe).count) of \(items.count) suggestions are safe to remove.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
             }
             HStack(spacing: 8) {
                 Button("Select all safe") { selected = Set(items.filter(\.safe).map(\.id)) }
-                Button("Clear") { selected = [] }.disabled(selected.isEmpty)
+                    .buttonStyle(.bordered)
+                Button("Clear") { selected = [] }
+                    .buttonStyle(.bordered)
+                    .disabled(selected.isEmpty)
             }
-            .controlSize(.large)
 
             if !chosen.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("WHAT HAPPENS").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+                DetailCard(title: "What happens") {
                     if tasks > 0 {
                         Label("\(tasks) worktree folder\(tasks == 1 ? "" : "s") and local branch\(tasks == 1 ? "" : "es") removed, cmux workspaces closed",
                               systemImage: "trash")
@@ -454,7 +525,7 @@ struct CleanupPane: View {
                     }
                     Label("Remote branches on origin are kept", systemImage: "cloud")
                 }
-                .font(.callout)
+                .font(.system(size: 13))
                 .foregroundStyle(.secondary)
             }
 
@@ -462,30 +533,31 @@ struct CleanupPane: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("\(risky.count) selected item\(risky.count == 1 ? " has" : "s have") work that would be lost",
                           systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange).font(.callout.weight(.medium))
+                        .foregroundStyle(.orange).font(.system(size: 13, weight: .medium))
                     Toggle("Remove them anyway (uncommitted and unpushed work is lost)", isOn: $force)
                         .toggleStyle(.checkbox).font(.system(size: 12))
                 }
                 .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
             }
 
-            Button(role: .destructive) {
-                store.applyCleanup(ids: Array(selected), force: force)
-                selected = []
-                force = false
-            } label: {
-                Text(chosen.isEmpty ? "Remove" : "Remove \(chosen.count)")
-                    .frame(maxWidth: .infinity)
-            }
-            .controlSize(.large)
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(chosen.isEmpty || blocked)
-            if blocked {
-                Text("Tick “Remove them anyway” or deselect the items marked in orange.")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Button(role: .destructive) {
+                    store.applyCleanup(ids: Array(selected), force: force)
+                    selected = []
+                    force = false
+                } label: {
+                    Label(chosen.isEmpty ? "Remove" : "Remove \(chosen.count)", systemImage: "trash")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.82, green: 0.22, blue: 0.2))
+                .controlSize(.large)
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(chosen.isEmpty || blocked)
+                Text(blocked ? "Tick “Remove them anyway” or deselect the orange items."
+                             : chosen.isEmpty ? "Select items on the left." : "⌘↵")
+                    .font(.system(size: 12)).foregroundStyle(.tertiary)
             }
             Spacer()
         }

@@ -53,6 +53,7 @@ struct Activity: Identifiable, Equatable {
 final class AppStore {
     var snapshot: Snapshot = .empty
     var sessions: [Session] = []
+    var sessionsLoading = false
     var cleanupItems: [CleanupItem] = []
     var cleanupLoading = false
     var config: WkConfig?
@@ -232,13 +233,15 @@ final class AppStore {
         sessionSearch?.cancel()
         guard let client else { return }
         let query = query, includeTrash = includeTrash
+        sessionsLoading = true
         sessionSearch = Task {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             struct Args: Encodable { var query: String; var trash: Bool }
-            if let found = try? await client.call("sessions", Args(query: query, trash: includeTrash), as: [Session]?.self), !Task.isCancelled {
-                sessions = found ?? []
-            }
+            let found = try? await client.call("sessions", Args(query: query, trash: includeTrash), as: [Session]?.self)
+            guard !Task.isCancelled else { return }  // a newer search owns the flag now
+            if let found { sessions = found ?? [] }
+            sessionsLoading = false
         }
     }
 
@@ -418,19 +421,23 @@ final class AppStore {
             activities[index].done = true
             activities[index].failed = failed
         }
-        toast = (failed ? "⚠︎ " : "✓ ") + message
-        let shownToast = toast
-        Task {
-            try? await Task.sleep(for: .seconds(failed ? 8 : 4))
-            if toast == shownToast { toast = nil }
-        }
+        showToast((failed ? "⚠︎ " : "✓ ") + message, seconds: failed ? 8 : 4)
         if notify && !PaletteController.shared.isVisible {
             Notifier.result(title: failed ? "Wk: failed" : "Wk", body: message)
         }
     }
 
     func show(_ error: Error) {
-        toast = "⚠︎ " + error.localizedDescription
+        showToast("⚠︎ " + error.localizedDescription, seconds: 6)
+    }
+
+    /// Every toast dismisses itself; a newer toast cancels the older one's timer implicitly.
+    func showToast(_ text: String, seconds: Double = 3) {
+        toast = text
+        Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            if toast == text { toast = nil }
+        }
     }
 
     nonisolated static func describe(_ result: OpenResult) -> String {
@@ -447,7 +454,7 @@ final class AppStore {
     func copy(_ text: String, label: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        toast = "✓ Copied \(label)"
+        showToast("✓ Copied \(label)")
     }
 
     func reveal(_ path: String) {

@@ -44,9 +44,38 @@ public struct Session: Codable, Hashable, Identifiable, Sendable {
     public var cwdExists: Bool
     public var trashed: Bool?
     public var primary: Bool?
+    public var size: Int64?
 
     public var displayTitle: String { (alias?.isEmpty == false ? alias : nil) ?? title }
     public var isLive: Bool { state == .running || state == .waiting }
+
+    /// Transcript size on disk, e.g. "1.8 MB". The index already has it, so showing it is free.
+    public var sizeLabel: String? {
+        guard let size, size > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    /// Short form for list rows, e.g. "≈ 443k tokens".
+    public var resumeCostCompact: String? {
+        guard let size, size > 0 else { return nil }
+        let tokens = size / 4
+        switch tokens {
+        case ..<1_000: return "≈ \(tokens) tokens"
+        case ..<1_000_000: return "≈ \(tokens / 1_000)k tokens"
+        default: return String(format: "≈ %.1fM tokens", Double(tokens) / 1_000_000)
+        }
+    }
+
+    /// Rough cost of resuming: the whole transcript is re-read, ≈ 4 bytes per token.
+    public var resumeCostLabel: String? {
+        guard let size, size > 0 else { return nil }
+        let tokens = size / 4
+        switch tokens {
+        case ..<1_000: return "≈ \(tokens) tokens"
+        case ..<1_000_000: return "≈ \(tokens / 1_000)k tokens"
+        default: return String(format: "≈ %.1fM tokens", Double(tokens) / 1_000_000)
+        }
+    }
 }
 
 public struct Workspace: Codable, Hashable, Sendable {

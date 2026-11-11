@@ -103,10 +103,7 @@ struct TaskRow: View {
             if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil") }
             if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue) }
             if !task.hasFolder && !task.detached { Chip(text: "no folder") }
-            Text(RelativeTime.short(task.lastActivity))
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .trailing)
+            TimeLabel(date: task.lastActivity)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -135,16 +132,32 @@ struct SessionRow: View {
                 .lineLimit(1)
             }
             Spacer(minLength: 4)
-            Text("\(session.prompts)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary).help("prompts")
-            Text(RelativeTime.short(session.last))
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .trailing)
+            VStack(alignment: .trailing, spacing: 1) {
+                TimeLabel(date: session.last)
+                if let size = session.sizeLabel {
+                    Text(size + (session.resumeCostCompact.map { " \($0)" } ?? ""))
+                        .font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+                        .help("transcript size — resuming re-reads roughly this many tokens")
+                }
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(selected ? Color.accentColor.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
         .contentShape(Rectangle())
+    }
+}
+
+/// Relative time with a clock glyph, so "22m" can't be misread as a quantity.
+struct TimeLabel: View {
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "clock").font(.system(size: 9))
+            Text(RelativeTime.short(date)).font(.system(size: 11).monospacedDigit())
+        }
+        .foregroundStyle(.secondary)
     }
 }
 
@@ -157,6 +170,41 @@ struct DetailSection<Content: View>: View {
             Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
             content
         }
+    }
+}
+
+/// A quiet card that groups one topic in a detail panel.
+struct DetailCard<Content: View>: View {
+    var title: String? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let title {
+                Text(title.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.07)))
+    }
+}
+
+/// One aligned label/value line inside a DetailCard.
+struct FactRow<Value: View>: View {
+    let label: String
+    @ViewBuilder var value: Value
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label).foregroundStyle(.secondary).frame(width: 76, alignment: .leading)
+            value.frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .font(.system(size: 13))
     }
 }
 
