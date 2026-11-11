@@ -95,6 +95,7 @@ struct TaskActionsOverlay: View {
             ActionItem(id: "fresh", section: "Open", title: "New Claude session here", symbol: "plus.bubble") { close(); store.open(task, mode: "new") },
             ActionItem(id: "noclaude", section: "Open", title: "Open without Claude", symbol: "terminal") { close(); store.open(task, mode: "none") },
             ActionItem(id: "newws", section: "Open", title: "Open in a new cmux workspace", symbol: "rectangle.badge.plus") { close(); store.open(task, newWorkspace: true) },
+            ActionItem(id: "single", section: "Open", title: "Open with a single Claude pane", symbol: "rectangle", hint: "⌘↵") { close(); store.open(task, single: true) },
         ]
         if task.hasFolder {
             list.append(ActionItem(id: "switch", section: "Branch", title: "Switch this folder to another branch…", symbol: "arrow.triangle.branch") {
@@ -163,6 +164,7 @@ struct SessionActionsOverlay: View {
         if session.cwdExists {
             list.append(ActionItem(id: "resume", section: "Open", title: session.isLive ? "Jump to running session" : "Resume", symbol: "arrow.right.circle", hint: "↵") { close(); store.resume(session) })
             list.append(ActionItem(id: "resumenew", section: "Open", title: "Resume in a new cmux workspace", symbol: "rectangle.badge.plus") { close(); store.resume(session, newWorkspace: true) })
+            list.append(ActionItem(id: "resumesingle", section: "Open", title: "Resume with a single Claude pane", symbol: "rectangle", hint: "⌘↵") { close(); store.resume(session, single: true) })
         } else {
             list.append(ActionItem(id: "recreate", section: "Open", title: "Recreate its folder and resume", symbol: "arrow.counterclockwise.circle", hint: "↵") { close(); store.resume(session, recreate: true) })
         }
@@ -190,6 +192,7 @@ struct CheckoutOverlay: View {
     let taskID: String
     let mode: String
     let session: String?
+    let single: Bool
     @Environment(AppStore.self) private var store
     @FocusState private var focused: Bool
 
@@ -217,7 +220,7 @@ struct CheckoutOverlay: View {
 
     private func choose(_ task: WkTask, _ via: String) {
         store.overlay = nil
-        store.open(task, mode: mode, session: session, via: via)
+        store.open(task, mode: mode, session: session, via: via, single: single)
     }
 }
 

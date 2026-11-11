@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Borderless floating panel that can take keyboard focus without a Dock icon (Spotlight-style).
+/// Borderless full-screen panel that can take keyboard focus without a Dock icon (launcher-style).
 final class PalettePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
@@ -24,16 +24,18 @@ final class PaletteController: NSObject, NSWindowDelegate {
     }
 
     private func makePanel() -> PalettePanel {
-        let panel = PalettePanel(contentRect: NSRect(x: 0, y: 0, width: 900, height: 560),
-                                 styleMask: [.borderless, .fullSizeContentView, .resizable],
+        let panel = PalettePanel(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+                                 styleMask: [.borderless, .fullSizeContentView],
                                  backing: .buffered, defer: false)
         panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Above the menu bar and Dock, so the palette owns the whole screen while it is open.
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 1)
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
+        panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isReleasedWhenClosed = false
         panel.delegate = self
         if let store {
@@ -56,7 +58,7 @@ final class PaletteController: NSObject, NSWindowDelegate {
             if store.tab == .cleanup { store.loadCleanup() }
             if store.tab == .sessions { store.searchSessions() }
         }
-        if !panel.isVisible { center(panel) }
+        if !panel.isVisible { fillScreen(panel) }
         activateApp()
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
@@ -94,11 +96,11 @@ final class PaletteController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func center(_ panel: NSPanel) {
+    /// Covers the whole screen under the mouse (re-applied on every show, the user may have moved screens).
+    private func fillScreen(_ panel: NSPanel) {
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
-        guard let visible = screen?.visibleFrame else { return }
-        let size = panel.frame.size
-        panel.setFrameOrigin(NSPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2 + visible.height * 0.1))
+        guard let frame = screen?.frame else { return }
+        panel.setFrame(frame, display: true)
     }
 
     nonisolated func windowDidResignKey(_ notification: Notification) {

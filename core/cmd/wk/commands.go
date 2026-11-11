@@ -94,6 +94,7 @@ func cmdOpen(service *core.Service, args []string) error {
 	via := command.set.String("via", "", "switch|worktree for branches without a folder")
 	stash := command.set.Bool("stash", false, "stash uncommitted changes when switching")
 	newWorkspace := command.set.Bool("new-workspace", false, "always open a new cmux workspace")
+	single := command.set.Bool("single", false, "new workspace gets one Claude pane, not the 3-pane layout")
 	if err := command.parse(args); err != nil {
 		return err
 	}
@@ -101,7 +102,7 @@ func cmdOpen(service *core.Service, args []string) error {
 	if err != nil {
 		return err
 	}
-	request := core.OpenRequest{Task: query, Session: *session, Via: core.CheckoutVia(*via), Stash: *stash, NewWorkspace: *newWorkspace}
+	request := core.OpenRequest{Task: query, Session: *session, Via: core.CheckoutVia(*via), Stash: *stash, NewWorkspace: *newWorkspace, Single: *single}
 	switch {
 	case *noClaude:
 		request.Mode = core.OpenNone
@@ -152,6 +153,7 @@ func cmdResume(service *core.Service, args []string) error {
 	command := newCLI("resume")
 	newWorkspace := command.set.Bool("new-workspace", false, "always open a new cmux workspace")
 	recreate := command.set.Bool("recreate", false, "recreate a deleted worktree at its original path")
+	single := command.set.Bool("single", false, "new workspace gets one Claude pane, not the 3-pane layout")
 	if err := command.parse(args); err != nil {
 		return err
 	}
@@ -159,7 +161,7 @@ func cmdResume(service *core.Service, args []string) error {
 	if err != nil {
 		return err
 	}
-	result, err := service.Resume(core.ResumeRequest{Session: id, NewWorkspace: *newWorkspace, Recreate: *recreate}, progressFor(command))
+	result, err := service.Resume(core.ResumeRequest{Session: id, NewWorkspace: *newWorkspace, Recreate: *recreate, Single: *single}, progressFor(command))
 	if err != nil {
 		return err
 	}

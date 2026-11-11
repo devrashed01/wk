@@ -25,6 +25,9 @@ type Config struct {
 	CmuxBin    string   `toml:"cmux_bin,omitempty" json:"cmux_bin,omitempty"`
 	GitBin     string   `toml:"git_bin,omitempty" json:"git_bin,omitempty"`
 	Hotkey     string   `toml:"hotkey,omitempty" json:"hotkey,omitempty"`
+	// AutoStartClaude runs claude (fresh or --resume) right away when opening a workspace; by default
+	// the command is only typed at the prompt, since resuming re-reads the whole transcript and costs tokens.
+	AutoStartClaude bool `toml:"auto_start_claude,omitempty" json:"auto_start_claude,omitempty"`
 	// LabelStripPrefixes are removed from repo folder names for short labels ("acme-web" -> "WEB").
 	LabelStripPrefixes []string        `toml:"label_strip_prefixes,omitempty" json:"label_strip_prefixes,omitempty"`
 	Repos              map[string]Repo `toml:"repo,omitempty" json:"repos,omitempty"`

@@ -2,7 +2,7 @@
 
 A macOS menu-bar app and CLI for keeping track of your repos, feature branches, git worktrees and the [Claude Code](https://claude.com/claude-code) session that belongs to each, built on top of [cmux](https://cmux.dev).
 
-You stop hunting for branch names and lost Claude sessions. Press a hotkey, type a ticket or a word, hit ↵, and you're back in that task with its server, Claude and git panes.
+You stop hunting for branch names and lost Claude sessions. Press a hotkey, type a ticket or a word, hit ↵, and you're back in that task with its server, Claude and git panes (⌘↵ for a single Claude pane).
 
 - **⌥Space** opens the search window from anywhere. Type a ticket (`ABC-123` or `123`), a branch, a repo or a session title, then press **↵** to jump there. Wk focuses the running Claude, selects its cmux workspace, or opens a new *server | claude | git* workspace and resumes the latest session.
 - **⌘K** lists every action for the selected row, so there's nothing to memorize.
@@ -48,6 +48,7 @@ roots = ["~/code"]               # where to look for repos (default: ~/code, ~/p
 base_branch = ""                 # empty = auto-detect (origin/HEAD, then main/master/...)
 recent_days = 30                 # how far back the Recent list goes
 hotkey = "option+space"
+auto_start_claude = false        # false: only type `claude` / `claude --resume` in cmux, Enter runs it (resuming costs tokens)
 label_strip_prefixes = ["acme-"] # shorten repo labels: "acme-web" -> "web"
 
 [repo."~/code/acme-web"]

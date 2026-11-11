@@ -30,8 +30,8 @@ struct TasksPane: View {
                         if let id { proxy.scrollTo(id) }
                     }
                 }
-                .frame(width: 470)
-                Divider()
+                .frame(minWidth: 380, idealWidth: 480, maxWidth: 520)
+                Spacer().frame(width: 40)
                 TaskDetailView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -194,8 +194,8 @@ struct SessionsPane: View {
                     }
                 }
             }
-            .frame(width: 470)
-            Divider()
+            .frame(minWidth: 380, idealWidth: 480, maxWidth: 520)
+            Spacer().frame(width: 40)
             SessionDetailView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -248,67 +248,254 @@ struct SessionDetailView: View {
 
 // MARK: Cleanup
 
+private let cleanupKinds = ["merged", "gone", "missing_worktree", "stale", "orphan_session"]
+
+private func cleanupInfo(_ kind: String) -> (symbol: String, color: Color, blurb: String) {
+    switch kind {
+    case "merged": ("checkmark.seal", .green, "Merged into the base branch. Safe to drop the folder and local branch.")
+    case "gone": ("cloud.slash", .blue, "The branch was deleted on origin, usually after the PR merged.")
+    case "missing_worktree": ("folder.badge.questionmark", .purple, "The folder is gone but git still tracks it; this just prunes the record.")
+    case "stale": ("hourglass", .orange, "No commits or Claude activity for a long time.")
+    case "orphan_session": ("bubble.left.and.exclamationmark.bubble.right", .pink, "Claude sessions whose folder and branch no longer exist. They go to wk's trash and can be restored.")
+    default: ("questionmark.circle", .gray, "")
+    }
+}
+
+/// Cleanup tab: category filters, grouped suggestions with risk badges, and a summary panel that
+/// says exactly what removing the selection will do.
 struct CleanupPane: View {
     @Environment(AppStore.self) private var store
     @State private var selected: Set<String> = []
     @State private var force = false
+    @State private var filter: String?
 
     var body: some View {
-        let items = store.visibleCleanup
-        VStack(spacing: 0) {
+        let all = store.visibleCleanup
+        let items = filter.map { kind in all.filter { $0.kind == kind } } ?? all
+        Group {
             if store.cleanupLoading && store.cleanupItems.isEmpty {
                 ProgressView("Checking branches for merged, deleted and unpushed work…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if items.isEmpty {
-                EmptyState(symbol: "sparkles", title: "Nothing to clean up",
+            } else if all.isEmpty {
+                EmptyState(symbol: "sparkles", title: "All clean",
                            subtitle: "Merged branches, deleted remotes, missing folders, stale tasks and orphaned sessions show up here.")
             } else {
-                List {
-                    ForEach(groupedKinds(items), id: \.self) { kind in
-                        Section(items.first { $0.kind == kind }?.kindLabel ?? kind) {
-                            ForEach(items.filter { $0.kind == kind }) { item in row(item) }
+                VStack(alignment: .leading, spacing: 18) {
+                    filterBar(all)
+                    HStack(alignment: .top, spacing: 40) {
+                        list(items)
+                            .frame(minWidth: 460, maxWidth: 760)
+                        summary(all)
+                            .frame(width: 340)
+                    }
+                }
+            }
+        }
+        .onChange(of: store.cleanupItems) { _, items in selected.formIntersection(items.map(\.id)) }
+        .onReceive(NotificationCenter.default.publisher(for: .wkCleanupToggle)) { _ in
+            if let id = store.selectedCleanupID { toggle(id) }
+        }
+    }
+
+    // MARK: Filters
+
+    private func filterBar(_ items: [CleanupItem]) -> some View {
+        HStack(spacing: 8) {
+            pill(title: "All", count: items.count, color: .secondary, active: filter == nil) { filter = nil }
+            ForEach(cleanupKinds.filter { kind in items.contains { $0.kind == kind } }, id: \.self) { kind in
+                let info = cleanupInfo(kind)
+                pill(title: items.first { $0.kind == kind }?.kindLabel ?? kind, symbol: info.symbol,
+                     count: items.filter { $0.kind == kind }.count, color: info.color, active: filter == kind) {
+                    filter = filter == kind ? nil : kind
+                }
+            }
+            Spacer()
+            Button { store.loadCleanup() } label: {
+                Label(store.cleanupLoading ? "Checking…" : "Refresh", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.plain).foregroundStyle(.secondary)
+            .disabled(store.cleanupLoading)
+        }
+    }
+
+    private func pill(title: String, symbol: String? = nil, count: Int, color: Color, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let symbol { Image(systemName: symbol).foregroundStyle(color) }
+                Text(title)
+                Text("\(count)").monospacedDigit().foregroundStyle(.secondary)
+            }
+            .font(.system(size: 12, weight: active ? .semibold : .regular))
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(active ? Color.white.opacity(0.12) : Color.white.opacity(0.04), in: Capsule())
+            .overlay(Capsule().strokeBorder(.white.opacity(active ? 0.18 : 0.06)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: List
+
+    private func list(_ items: [CleanupItem]) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2, pinnedViews: []) {
+                    ForEach(cleanupKinds.filter { kind in items.contains { $0.kind == kind } }, id: \.self) { kind in
+                        let group = items.filter { $0.kind == kind }
+                        groupHeader(kind, group)
+                        ForEach(group) { item in
+                            row(item)
+                                .id(item.id)
+                                .onTapGesture { store.selectedCleanupID = item.id; toggle(item.id) }
                         }
                     }
                 }
-                .listStyle(.inset)
-                Divider()
-                HStack {
-                    Button("Select safe") { selected = Set(items.filter(\.safe).map(\.id)) }
-                    Button("Select none") { selected = [] }
-                    Toggle("Include items with unpushed/uncommitted work", isOn: $force).toggleStyle(.checkbox).font(.caption)
-                    Spacer()
-                    Text("Removes worktree + local branch. Remote branches are kept.").font(.caption).foregroundStyle(.secondary)
-                    Button("Remove \(selected.count) selected", role: .destructive) {
-                        store.applyCleanup(ids: Array(selected), force: force)
-                        selected = []
-                    }
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(selected.isEmpty)
-                }
-                .padding(10)
+                .padding(.bottom, 20)
             }
-        }
-        .onChange(of: store.cleanupItems) { _, items in
-            selected.formIntersection(items.map(\.id))
+            .onChange(of: store.selectedCleanupID) { _, id in if let id { proxy.scrollTo(id) } }
         }
     }
 
-    private func groupedKinds(_ items: [CleanupItem]) -> [String] {
-        ["merged", "gone", "missing_worktree", "stale", "orphan_session"].filter { kind in items.contains { $0.kind == kind } }
+    private func groupHeader(_ kind: String, _ group: [CleanupItem]) -> some View {
+        let info = cleanupInfo(kind)
+        let ids = Set(group.map(\.id))
+        let allSelected = ids.isSubset(of: selected)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Label((group.first?.kindLabel ?? kind).uppercased(), systemImage: info.symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(info.color)
+                Text("\(group.count)").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Spacer()
+                Button(allSelected ? "Deselect group" : "Select group") {
+                    if allSelected { selected.subtract(ids) } else { selected.formUnion(ids) }
+                }
+                .buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
+            }
+            Text(info.blurb).font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 18).padding(.bottom, 6)
     }
 
     private func row(_ item: CleanupItem) -> some View {
-        HStack {
-            Toggle("", isOn: Binding(get: { selected.contains(item.id) },
-                                     set: { if $0 { selected.insert(item.id) } else { selected.remove(item.id) } }))
-                .toggleStyle(.checkbox).labelsHidden()
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.title).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                Text(item.reason).font(.caption).foregroundStyle(.secondary)
+        let isOn = selected.contains(item.id)
+        let focused = store.selectedCleanupID == item.id
+        return HStack(spacing: 12) {
+            Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16))
+                .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.6))
+            let label = store.snapshot.repos?.first { $0.path == item.repo }?.label ?? item.repoName.uppercased()
+            if !item.title.hasPrefix(label + " ") {
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
+                    .foregroundStyle(.secondary)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(item.reason).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if item.safe {
+                Label("Safe", systemImage: "checkmark.shield").font(.caption).foregroundStyle(.green.opacity(0.85))
+            } else {
+                Label(riskText(item), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            Text(RelativeTime.short(item.last))
+                .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                .frame(width: 34, alignment: .trailing)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(isOn ? Color.accentColor.opacity(0.16) : focused ? Color.white.opacity(0.06) : .clear,
+                    in: RoundedRectangle(cornerRadius: 10))
+        .contentShape(Rectangle())
+    }
+
+    private func riskText(_ item: CleanupItem) -> String {
+        var parts: [String] = []
+        if item.dirty > 0 { parts.append("\(item.dirty) uncommitted") }
+        if item.unpushed > 0 { parts.append("\(item.unpushed) unpushed") }
+        return parts.isEmpty ? "Check first" : parts.joined(separator: " · ")
+    }
+
+    // MARK: Summary
+
+    private func summary(_ items: [CleanupItem]) -> some View {
+        let chosen = items.filter { selected.contains($0.id) }
+        let risky = chosen.filter { !$0.safe }
+        let sessions = chosen.filter { $0.kind == "orphan_session" }.count
+        let tasks = chosen.count - sessions
+        let blocked = !risky.isEmpty && !force
+        return VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(chosen.isEmpty ? "Nothing selected" : "\(chosen.count) selected")
+                    .font(.system(size: 26, weight: .semibold))
+                Text("\(items.filter(\.safe).count) of \(items.count) suggestions are safe to remove.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Button("Select all safe") { selected = Set(items.filter(\.safe).map(\.id)) }
+                Button("Clear") { selected = [] }.disabled(selected.isEmpty)
+            }
+            .controlSize(.large)
+
+            if !chosen.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("WHAT HAPPENS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    if tasks > 0 {
+                        Label("\(tasks) worktree folder\(tasks == 1 ? "" : "s") and local branch\(tasks == 1 ? "" : "es") removed, cmux workspaces closed",
+                              systemImage: "trash")
+                    }
+                    if sessions > 0 {
+                        Label("\(sessions) session\(sessions == 1 ? "" : "s") moved to wk's trash (restorable)", systemImage: "arrow.uturn.backward.circle")
+                    }
+                    Label("Remote branches on origin are kept", systemImage: "cloud")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
+            if !risky.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("\(risky.count) selected item\(risky.count == 1 ? " has" : "s have") work that would be lost",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange).font(.callout.weight(.medium))
+                    Toggle("Remove them anyway (uncommitted and unpushed work is lost)", isOn: $force)
+                        .toggleStyle(.checkbox).font(.caption)
+                }
+                .padding(12)
+                .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+            }
+
+            Button(role: .destructive) {
+                store.applyCleanup(ids: Array(selected), force: force)
+                selected = []
+                force = false
+            } label: {
+                Text(chosen.isEmpty ? "Remove" : "Remove \(chosen.count)")
+                    .frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(chosen.isEmpty || blocked)
+            if blocked {
+                Text("Tick “Remove them anyway” or deselect the items marked in orange.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            if !item.safe { Chip(text: "\(item.dirty) dirty · \(item.unpushed) unpushed", color: .orange) }
-            Text(RelativeTime.short(item.last)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
     }
+
+    private func toggle(_ id: String) {
+        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+    }
+}
+
+extension Notification.Name {
+    static let wkCleanupToggle = Notification.Name("wkCleanupToggle")
 }

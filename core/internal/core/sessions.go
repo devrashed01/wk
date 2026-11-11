@@ -82,6 +82,7 @@ type ResumeRequest struct {
 	Session      string `json:"session"`
 	NewWorkspace bool   `json:"new_workspace,omitempty"`
 	Recreate     bool   `json:"recreate,omitempty"` // orphan: recreate the worktree at the original path
+	Single       bool   `json:"single,omitempty"`   // a new workspace gets one Claude pane instead of the 3-pane layout
 }
 
 // Resume opens a session wherever it lives, recreating a deleted worktree if asked.
@@ -113,7 +114,7 @@ func (service *Service) Resume(request ResumeRequest, progress Progress) (OpenRe
 	name := label + " " + firstNonEmpty(gitops.Ticket(session.Branch), session.Branch, truncateTitle(session.DisplayTitle()))
 	return service.openAt(openTarget{
 		name: name, cwd: session.Cwd, repo: session.Repo, existing: service.workspaceAt(session.Cwd),
-		claudeCmd: "claude --resume " + session.ID, setupCmd: setupCmd, newWorkspace: request.NewWorkspace,
+		claudeCmd: "claude --resume " + session.ID, setupCmd: setupCmd, newWorkspace: request.NewWorkspace, single: request.Single,
 	})
 }
 

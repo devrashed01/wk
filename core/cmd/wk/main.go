@@ -20,10 +20,10 @@ Just run "wk" to open the picker (or the Wk app's search window when installed).
 Everyday
   wk                         open the picker / app
   wk tasks [--all]           list tasks (repo + branch) with status
-  wk open <task>             jump to a task (resumes its Claude session)
-       --session <id>  --new (fresh Claude)  --no-claude  --via switch|worktree  --new-workspace
+  wk open <task>             jump to a task (types its Claude resume command, Enter runs it)
+       --session <id>  --new (fresh Claude)  --no-claude  --via switch|worktree  --new-workspace  --single
   wk sessions [words...]     search every Claude session  (--trash includes trashed)
-  wk resume <session>        open a session where it lives  (--recreate, --new-workspace)
+  wk resume <session>        open a session where it lives  (--recreate, --new-workspace, --single)
   wk new [name]              create a branch / worktree and open it (asks what it needs)
        --repo <r> --from base|local|remote|worktree --ref <x> --in-place --stash --no-setup --no-open
 

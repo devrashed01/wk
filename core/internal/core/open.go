@@ -3,6 +3,8 @@ package core
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,6 +34,7 @@ type OpenRequest struct {
 	Via          CheckoutVia `json:"via,omitempty"`
 	Stash        bool        `json:"stash,omitempty"`
 	NewWorkspace bool        `json:"new_workspace,omitempty"`
+	Single       bool        `json:"single,omitempty"` // a new workspace gets one Claude pane instead of the 3-pane layout
 }
 
 type OpenResult struct {
@@ -128,7 +131,7 @@ func (service *Service) Open(request OpenRequest, progress Progress) (OpenResult
 	claudeCmd := claudeCommand(request.Mode, session)
 	return service.openAt(openTarget{
 		name: workspaceName(task), cwd: cwd, repo: task.Repo, existing: task.Workspace,
-		claudeCmd: claudeCmd, setupCmd: setupCmd, newWorkspace: request.NewWorkspace,
+		claudeCmd: claudeCmd, setupCmd: setupCmd, newWorkspace: request.NewWorkspace, single: request.Single,
 	})
 }
 
@@ -137,6 +140,7 @@ type openTarget struct {
 	existing            *Workspace
 	claudeCmd, setupCmd string
 	newWorkspace        bool
+	single              bool // one pane instead of the 3-pane layout
 }
 
 // openAt selects an existing workspace (adding a Claude tab if asked) or creates a 3-pane one.
@@ -149,14 +153,18 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 		command := joinCommands("cd "+shellQuote(cwd), target.setupCmd, target.claudeCmd)
 		return OpenResult{Action: "printed", Cwd: cwd, Command: command, Message: "cmux is not running; run this in a terminal"}, nil
 	}
+	claudeCmd := target.claudeCmd
+	if !service.Config.AutoStartClaude {
+		claudeCmd = stageClaude(claudeCmd)
+	}
 	if target.existing != nil && !target.newWorkspace {
 		existing := target.existing
 		if err := service.Cmux.Select(existing.ID); err != nil {
 			return OpenResult{}, err
 		}
 		action, message := "selected", "Switched to workspace "+existing.Title
-		if target.claudeCmd != "" {
-			if err := service.Cmux.NewSurface(existing.ID, joinCommands("cd "+shellQuote(cwd), target.claudeCmd)); err != nil {
+		if claudeCmd != "" {
+			if err := service.Cmux.NewSurface(existing.ID, joinCommands("cd "+shellQuote(cwd), claudeCmd)); err != nil {
 				return OpenResult{}, err
 			}
 			action, message = "added-tab", "Switched to "+existing.Title+" and opened Claude in a new tab"
@@ -167,10 +175,10 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 	settings := service.repoSettings(target.repo)
 	serverCmd := joinCommands(target.setupCmd, settings.ServerCmd)
 	layout := ""
-	if !settings.NoLayout {
-		layout = cmuxLayout(serverCmd, target.claudeCmd)
+	if !settings.NoLayout && !target.single {
+		layout = cmuxLayout(serverCmd, claudeCmd)
 	}
-	ref, err := service.Cmux.CreateWorkspace(target.name, cwd, joinCommands(target.setupCmd, target.claudeCmd), layout)
+	ref, err := service.Cmux.CreateWorkspace(target.name, cwd, joinCommands(target.setupCmd, claudeCmd), layout)
 	if err != nil {
 		return OpenResult{}, err
 	}
@@ -250,6 +258,20 @@ func claudeCommand(mode OpenMode, session *Session) string {
 		return "claude --resume " + session.ID
 	}
 	return "claude"
+}
+
+// stageClaude turns "claude" or "claude --resume <id>" into a command that only types it at the
+// prompt, so Claude (and a resume, which re-reads the whole transcript and costs tokens) waits for Enter.
+// cmux types pane commands into the shell, and zsh's `print -z` puts text in the next line's edit
+// buffer. Other shells have no equivalent, so there the command still runs right away.
+func stageClaude(command string) string {
+	if command != "claude" && !strings.HasPrefix(command, "claude ") {
+		return command
+	}
+	if shell := os.Getenv("SHELL"); shell != "" && filepath.Base(shell) != "zsh" {
+		return command
+	}
+	return "print -z " + shellQuote(command)
 }
 
 func workspaceName(task Task) string {

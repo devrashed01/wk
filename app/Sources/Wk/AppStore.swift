@@ -21,7 +21,7 @@ enum Overlay: Equatable {
     case sessionActions(sessionID: String)
     case newTask(NewTaskSeed)
     case remove(taskID: String)
-    case checkout(taskID: String, mode: String, session: String?)
+    case checkout(taskID: String, mode: String, session: String?, single: Bool)
     case prompt(PromptKind)
     case pickSession(taskID: String)
 }
@@ -62,6 +62,7 @@ final class AppStore {
     var query = ""
     var selectedTaskID: String?
     var selectedSessionID: String?
+    var selectedCleanupID: String?
     var overlay: Overlay?
     var includeTrash = false
     var toast: String?
@@ -71,6 +72,14 @@ final class AppStore {
 
     var notifyWhenWaiting: Bool {
         didSet { UserDefaults.standard.set(notifyWhenWaiting, forKey: "notifyWhenWaiting") }
+    }
+    /// How dark the full-screen backdrop is (0 = no tint).
+    var backdropOpacity: Double {
+        didSet { UserDefaults.standard.set(backdropOpacity, forKey: "backdropOpacity") }
+    }
+    /// Blur the desktop behind the palette, like Spotlight.
+    var blurBackdrop: Bool {
+        didSet { UserDefaults.standard.set(blurBackdrop, forKey: "blurBackdrop") }
     }
 
     @ObservationIgnored private let client: CoreClient?
@@ -85,6 +94,8 @@ final class AppStore {
 
     init() {
         notifyWhenWaiting = UserDefaults.standard.object(forKey: "notifyWhenWaiting") as? Bool ?? false
+        backdropOpacity = UserDefaults.standard.object(forKey: "backdropOpacity") as? Double ?? 0.35
+        blurBackdrop = UserDefaults.standard.object(forKey: "blurBackdrop") as? Bool ?? true
         if let executable = CoreClient.locateExecutable() {
             client = CoreClient(executable: executable)
         } else {
@@ -265,24 +276,26 @@ final class AppStore {
         var via: String?
         var stash: Bool?
         var newWorkspace: Bool?
+        var single: Bool?
     }
 
-    func open(_ task: WkTask, mode: String = "resume", session: String? = nil, via: String? = nil, newWorkspace: Bool = false) {
+    /// `single` gives a newly created cmux workspace one Claude pane instead of the 3-pane layout.
+    func open(_ task: WkTask, mode: String = "resume", session: String? = nil, via: String? = nil, newWorkspace: Bool = false, single: Bool = false) {
         if !task.hasFolder && via == nil && !task.detached {
-            overlay = .checkout(taskID: task.id, mode: mode, session: session)
+            overlay = .checkout(taskID: task.id, mode: mode, session: session, single: single)
             return
         }
         run("Opening \(task.displayName)", hidePalette: true) { client, progress in
-            let result = try await client.call("open", OpenArgs(task: task.id, session: session, mode: mode, via: via, newWorkspace: newWorkspace),
+            let result = try await client.call("open", OpenArgs(task: task.id, session: session, mode: mode, via: via, newWorkspace: newWorkspace, single: single),
                                                as: OpenResult.self, progress: progress)
             return Self.describe(result)
         }
     }
 
-    func resume(_ session: Session, newWorkspace: Bool = false, recreate: Bool = false) {
-        struct Args: Encodable { var session: String; var newWorkspace: Bool; var recreate: Bool }
+    func resume(_ session: Session, newWorkspace: Bool = false, recreate: Bool = false, single: Bool = false) {
+        struct Args: Encodable { var session: String; var newWorkspace: Bool; var recreate: Bool; var single: Bool }
         run("Resuming \(session.displayTitle)", hidePalette: true) { client, progress in
-            let result = try await client.call("resume", Args(session: session.id, newWorkspace: newWorkspace, recreate: recreate),
+            let result = try await client.call("resume", Args(session: session.id, newWorkspace: newWorkspace, recreate: recreate, single: single),
                                                as: OpenResult.self, progress: progress)
             return Self.describe(result)
         }
@@ -351,6 +364,18 @@ final class AppStore {
             let saved = try await client.call("config_put", config, as: WkConfig.self)
             await MainActor.run { self.config = saved }
             return "Settings saved"
+        }
+    }
+
+    /// Saves settings without an activity entry or toast (Settings autosaves while you edit).
+    func saveConfigQuietly(_ config: WkConfig) async -> Bool {
+        guard let client else { coreMissing = true; return false }
+        do {
+            self.config = try await client.call("config_put", config, as: WkConfig.self)
+            return true
+        } catch {
+            show(error)
+            return false
         }
     }
 

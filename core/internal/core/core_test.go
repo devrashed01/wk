@@ -19,7 +19,7 @@ import (
 
 type fakeCmux struct {
 	workspaces []cmux.Workspace
-	created    []string // name|cwd|layout
+	created    []string // name|cwd|layout|command
 	selected   []string
 	closed     []string
 	surfaces   []string
@@ -35,7 +35,7 @@ func (fake *fakeCmux) NewSurface(workspace, command string) error {
 	return nil
 }
 func (fake *fakeCmux) CreateWorkspace(name, cwd, command, layout string) (string, error) {
-	fake.created = append(fake.created, name+"|"+cwd+"|"+layout)
+	fake.created = append(fake.created, name+"|"+cwd+"|"+layout+"|"+command)
 	return "workspace:9", nil
 }
 
@@ -149,6 +149,46 @@ func TestEnvBranchesFoldUnderFeature(t *testing.T) {
 	}
 }
 
+func TestOpenStagesResumeAndSinglePane(t *testing.T) {
+	t.Setenv("SHELL", "/bin/zsh")
+	fx := newFixture(t)
+	fx.addSession(t, "sess-a", fx.repo, "production")
+	fx.service.Config.Repos = map[string]config.Repo{config.Collapse(fx.repo): {ServerCmd: "yarn dev"}}
+
+	if _, err := fx.service.Open(OpenRequest{Task: "production", Single: true}, NopProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(fx.cmux.created[0], "|")
+	if layout, command := parts[2], parts[3]; layout != "" || command != "print -z 'claude --resume sess-a'" {
+		t.Errorf("single open: layout = %q command = %q", layout, command)
+	}
+	if _, err := fx.service.Open(OpenRequest{Task: "production", Mode: OpenNew, Single: true}, NopProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	if command := strings.Split(fx.cmux.created[1], "|")[3]; command != "print -z 'claude'" {
+		t.Errorf("fresh session should be staged too, command = %q", command)
+	}
+
+	fx.service.Config.AutoStartClaude = true
+	if _, err := fx.service.Open(OpenRequest{Task: "production", Single: true}, NopProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	if command := strings.Split(fx.cmux.created[2], "|")[3]; command != "claude --resume sess-a" {
+		t.Errorf("auto_start_claude should run the command, got %q", command)
+	}
+	if _, err := fx.service.Open(OpenRequest{Task: "production", Mode: OpenNew, Single: true}, NopProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	if command := strings.Split(fx.cmux.created[3], "|")[3]; command != "claude" {
+		t.Errorf("auto_start_claude should start a fresh session, got %q", command)
+	}
+
+	t.Setenv("SHELL", "/bin/bash")
+	if got := stageClaude("claude --resume x"); got != "claude --resume x" {
+		t.Errorf("non-zsh shells cannot stage, got %q", got)
+	}
+}
+
 func TestOpenSelectsExistingWorkspaceOrCreatesLayout(t *testing.T) {
 	fx := newFixture(t)
 	fx.addSession(t, "sess-a", fx.repo, "production")
@@ -191,6 +231,7 @@ func TestOpenBranchWithoutFolderNeedsCheckoutChoice(t *testing.T) {
 }
 
 func TestNewTaskCreatesWorktreeAndCopiesEnv(t *testing.T) {
+	t.Setenv("SHELL", "/bin/zsh")
 	fx := newFixture(t)
 	testutil.Write(t, fx.repo, ".env.local", "SECRET=1\n")
 	testutil.Write(t, fx.repo, "yarn.lock", "")
@@ -208,6 +249,9 @@ func TestNewTaskCreatesWorktreeAndCopiesEnv(t *testing.T) {
 	}
 	if len(fx.cmux.created) != 1 || !strings.HasPrefix(fx.cmux.created[0], "ADMIN ABC-9|") || !strings.Contains(fx.cmux.created[0], "yarn install") {
 		t.Errorf("created = %v", fx.cmux.created)
+	}
+	if !strings.Contains(fx.cmux.created[0], "print -z 'claude'") {
+		t.Errorf("new task should only type claude at the prompt: %s", fx.cmux.created[0])
 	}
 }
 

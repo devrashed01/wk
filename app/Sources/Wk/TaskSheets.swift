@@ -49,7 +49,13 @@ struct NewTaskOverlay: View {
                 } else {
                     Toggle("Stash uncommitted changes in the main folder", isOn: $stash)
                 }
-                Toggle("Start Claude in the new workspace", isOn: $startClaude)
+                Toggle("Open Claude in the new workspace", isOn: $startClaude)
+                if startClaude {
+                    Text(store.config?.autoStartClaude == true
+                         ? "Claude starts right away (Settings → Claude)."
+                         : "`claude` is typed in the tab; press Enter to start it (Settings → Claude).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             .formStyle(.columns)
             if let preview { Text(preview).font(.caption).foregroundStyle(.secondary) }

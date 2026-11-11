@@ -245,6 +245,7 @@ public struct WkConfig: Codable, Hashable, Sendable {
     public var cmuxBin: String?
     public var gitBin: String?
     public var hotkey: String?
+    public var autoStartClaude: Bool?
     public var labelStripPrefixes: [String]?
     public var repos: [String: RepoSettings]?
 }
