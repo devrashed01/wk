@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wk — jump back into any task</title>
+<meta name="description" content="A macOS menu-bar app and CLI for git worktrees and Claude Code sessions. Press ⌥Space, type a ticket, press ↵ — you're back in that task.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='240 180 540 660'%3E%3Cg fill='none' stroke-linecap='round' stroke-width='58'%3E%3Cpath stroke='%23F2F4F7' d='M360 268 L360 756 M360 694 C360 589 496 504 664 504'/%3E%3Cpath stroke='%23FF9F0A' d='M360 514 C360 409 496 324 664 324'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0c10; --panel: #15171d; --line: rgba(255,255,255,.08);
+    --fg: #f2f4f7; --dim: #9aa0ab; --faint: #6b7280; --accent: #ff9f0a;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .glow {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(600px 400px at 20% -5%, rgba(80,120,255,.14), transparent),
+      radial-gradient(500px 350px at 85% 0%, rgba(255,120,60,.08), transparent);
+  }
+  main { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 0 16px; }
+  a { color: var(--fg); }
+  nav { display: flex; align-items: center; gap: 10px; padding: 22px 0; }
+  nav .mark { width: 22px; height: 26px; }
+  nav b { font-size: 17px; }
+  nav .links { margin-left: auto; display: flex; gap: 18px; }
+  nav .links a { color: var(--dim); text-decoration: none; font-size: 14px; }
+  nav .links a:hover { color: var(--fg); }
+
+  header { padding: 72px 0 40px; text-align: center; }
+  header .mark { width: 84px; height: 100px; }
+  h1 { font-size: clamp(40px, 7vw, 64px); letter-spacing: -.02em; margin: 18px 0 10px; }
+  .tagline { font-size: clamp(18px, 3vw, 22px); color: var(--dim); max-width: 640px; margin: 0 auto; }
+  .tagline b { color: var(--fg); font-weight: 600; }
+  kbd {
+    font: 600 .85em ui-monospace, "SF Mono", Menlo, monospace;
+    background: rgba(255,255,255,.08); border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; white-space: nowrap;
+  }
+  .install { margin: 36px auto 10px; max-width: 640px; }
+  .cmd {
+    display: flex; align-items: center; gap: 12px; text-align: left;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; font: 13.5px ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-x: auto;
+  }
+  .cmd span { color: var(--faint); }
+  .cmd button {
+    margin-left: auto; flex: none; cursor: pointer; color: var(--dim);
+    background: rgba(255,255,255,.07); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 12px; font: 12px -apple-system, sans-serif;
+  }
+  .cmd button:hover { color: var(--fg); }
+  .alt { color: var(--faint); font-size: 14px; margin-top: 12px; }
+  .alt a { color: var(--dim); }
+
+  section { padding: 48px 0 8px; }
+  h2 { font-size: 15px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .card h3 { font-size: 16px; margin-bottom: 6px; }
+  .card h3 .dot { color: var(--accent); }
+  .card p { font-size: 14px; color: var(--dim); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  td { padding: 9px 8px; border-top: 1px solid var(--line); }
+  td:first-child { width: 160px; white-space: nowrap; }
+  td:last-child { color: var(--dim); }
+
+  footer { padding: 56px 0 40px; color: var(--faint); font-size: 14px; text-align: center; }
+  footer a { color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<main>
+  <nav>
+    <svg class="mark" viewBox="240 180 540 660" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-width="58"><path stroke="#F2F4F7" d="M360 268 L360 756 M360 694 C360 589 496 504 664 504"/><path stroke="#FF9F0A" d="M360 514 C360 409 496 324 664 324"/></g></svg>
+    <b>wk</b>
+    <div class="links">
+      <a href="https://github.com/devrashed01/wk">GitHub</a>
+      <a href="https://github.com/devrashed01/wk/releases">Releases</a>
+    </div>
+  </nav>
+
+  <header>
+    <svg class="mark" viewBox="240 180 540 660" aria-hidden="true"><g fill="none" stroke-linecap="round" stroke-width="58"><path stroke="#F2F4F7" d="M360 268 L360 756 M360 694 C360 589 496 504 664 504"/><path stroke="#FF9F0A" d="M360 514 C360 409 496 324 664 324"/></g></svg>
+    <h1>Jump back into any task.</h1>
+    <p class="tagline">A macOS menu-bar app + CLI for git worktrees and Claude Code sessions.
+      Press <kbd>⌥Space</kbd>, type a ticket, hit <kbd>↵</kbd> — you're back in that task with its
+      <b>Claude</b>, <b>server</b> and <b>git</b> panes.</p>
+
+    <div class="install">
+      <div class="cmd"><span>$</span><code id="curl">curl -fsSL https://raw.githubusercontent.com/devrashed01/wk/main/install.sh | sh</code><button onclick="navigator.clipboard.writeText(document.getElementById('curl').textContent).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button></div>
+      <p class="alt">or grab the <a href="https://github.com/devrashed01/wk/releases/latest">DMG</a> · macOS 14+, Apple&nbsp;silicon &amp; Intel · free, MIT</p>
+    </div>
+  </header>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card"><h3>One keystroke, any task <span class="dot">●</span></h3>
+        <p>A full-screen switcher over whatever you're doing — even over full-screen apps, without switching Spaces. Search by ticket, branch, repo or session title.</p></div>
+      <div class="card"><h3>Worktree-first</h3>
+        <p>Every task gets its own folder. New branches become sibling worktrees with <code>.env</code> files copied and dependencies installed, so nothing disturbs what's already running.</p></div>
+      <div class="card"><h3>Claude sessions, found again</h3>
+        <p>Every Claude Code session is indexed and searchable. Opening a task types <code>claude --resume</code> at the prompt — resuming costs tokens, so it waits for your Enter.</p></div>
+      <div class="card"><h3>cmux layouts</h3>
+        <p>Tasks open as a cmux workspace: Claude on the left, server and git on the right. Prefer one pane? <kbd>⌘↵</kbd>. Running sessions are focused, not duplicated.</p></div>
+      <div class="card"><h3>Guilt-free cleanup</h3>
+        <p>Merged branches, deleted remotes, missing folders, stale tasks and orphaned sessions — grouped, explained, and safe by default. Anything with unpushed work needs explicit consent.</p></div>
+      <div class="card"><h3>Light by design</h3>
+        <p>A native Swift app over a small Go core. About 40&nbsp;MB at idle, no polling — it watches the filesystem instead. The whole thing is open source.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Keyboard</h2>
+    <table>
+      <tr><td><kbd>⌥Space</kbd></td><td>open wk from anywhere (click the menu-bar icon works too)</td></tr>
+      <tr><td><kbd>↵</kbd></td><td>open the task — resumes its latest Claude session's workspace</td></tr>
+      <tr><td><kbd>⌘↵</kbd></td><td>open with a single Claude pane instead of the three-pane layout</td></tr>
+      <tr><td><kbd>⌘K</kbd></td><td>every action for the selected task or session</td></tr>
+      <tr><td><kbd>⌘N</kbd></td><td>new task — branch or worktree, set up and opened</td></tr>
+      <tr><td><kbd>⌘R</kbd></td><td>resume a specific session of the task</td></tr>
+      <tr><td><kbd>⌘1–4</kbd> <kbd>⌘←→</kbd></td><td>switch between Tasks, Sessions, Cleanup and Settings</td></tr>
+      <tr><td><kbd>esc</kbd></td><td>back, then close — focus returns to where you were</td></tr>
+    </table>
+  </section>
+
+  <footer>
+    <p>Requires <a href="https://cmux.io">cmux</a>, <a href="https://claude.com/claude-code">Claude Code</a> and git ·
+      <a href="https://github.com/devrashed01/wk">Source on GitHub</a> ·
+      MIT © Eahea Ratan</p>
+  </footer>
+</main>
+</body>
+</html>
