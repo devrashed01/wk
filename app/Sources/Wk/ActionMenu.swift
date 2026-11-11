@@ -62,7 +62,7 @@ struct ActionMenuOverlay: View {
                         }
                     }
                 }
-                .frame(maxHeight: 480)
+                .frame(maxHeight: .infinity)
                 .onChange(of: selection) { _, index in
                     if visible.indices.contains(index) { proxy.scrollTo(visible[index].id) }
                 }

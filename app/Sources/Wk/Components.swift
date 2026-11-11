@@ -254,6 +254,8 @@ struct OverlayCard<Content: View>: View {
                 }
                 .frame(width: min(max(width, 640), geometry.size.width - 48))
                 .padding(.top, geometry.size.height * 0.09)
+                .padding(.bottom, 56)
+                .frame(maxHeight: geometry.size.height, alignment: .top)
             }
         }
         .transition(.opacity)
