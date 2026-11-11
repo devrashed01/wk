@@ -4,7 +4,7 @@ import SwiftUI
 /// Borderless full-screen panel that can take keyboard focus without a Dock icon (launcher-style).
 final class PalettePanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
 
     override func cancelOperation(_ sender: Any?) {
         PaletteController.shared.escape()
@@ -24,12 +24,15 @@ final class PaletteController: NSObject, NSWindowDelegate {
     }
 
     private func makePanel() -> PalettePanel {
+        // .nonactivatingPanel is the Spotlight trick: the panel takes keyboard focus without
+        // activating the app, so macOS never switches Spaces — it appears right over whatever
+        // is frontmost, full-screen apps included.
         let panel = PalettePanel(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
-                                 styleMask: [.borderless, .fullSizeContentView],
+                                 styleMask: [.borderless, .fullSizeContentView, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
         panel.isFloatingPanel = true
-        // Above the menu bar and Dock, so the palette owns the whole screen while it is open.
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 1)
+        // Above full-screen apps and their menu bar while the palette is open.
+        panel.level = .popUpMenu
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
@@ -59,29 +62,20 @@ final class PaletteController: NSObject, NSWindowDelegate {
             if store.tab == .sessions { store.searchSessions() }
         }
         if !panel.isVisible { fillScreen(panel) }
-        activateApp()
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         // SwiftUI's onAppear only fires once; refocus the search field on every show.
         DispatchQueue.main.async { NotificationCenter.default.post(name: .wkFocusSearch, object: nil) }
-    }
-
-    /// macOS 14+ cooperative activation can refuse an accessory app; the legacy call still forces it,
-    /// which is what a hotkey launcher needs.
-    @available(macOS, deprecated: 14)
-    private func forceActivate() { NSApp.activate(ignoringOtherApps: true) }
-
-    private func activateApp() {
-        NSApp.activate()
-        if !NSApp.isActive { forceActivate() }
-        NSRunningApplication.current.activate(options: [.activateAllWindows])
+        ActivityHUD.shared.refresh()
     }
 
     func hide() {
         guard let panel, panel.isVisible else { return }
         panel.orderOut(nil)
-        // Hand keyboard focus back to whatever app was in front before the palette.
+        // The app was never activated (non-activating panel), so focus falls straight back to
+        // whatever app was in front — no Space switch either way.
         if NSApp.isActive { NSApp.hide(nil) }
+        ActivityHUD.shared.refresh()
     }
 
     /// Esc closes the innermost layer first: overlay, then search text, then the panel.

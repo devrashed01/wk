@@ -44,14 +44,14 @@ struct ActionMenuOverlay: View {
                         ForEach(Array(list.enumerated()), id: \.element.id) { index, item in
                             if index == 0 || list[index - 1].section != item.section {
                                 Text(item.section.uppercased())
-                                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
                                     .padding(.top, index == 0 ? 0 : 8).padding(.leading, 8)
                             }
                             HStack {
                                 Image(systemName: item.symbol).frame(width: 18)
                                 Text(item.title)
                                 Spacer()
-                                if !item.hint.isEmpty { Text(item.hint).font(.caption).foregroundStyle(.secondary) }
+                                if !item.hint.isEmpty { Text(item.hint).font(.system(size: 12)).foregroundStyle(.secondary) }
                             }
                             .foregroundStyle(item.destructive ? Theme.danger : .primary)
                             .padding(.horizontal, 8).padding(.vertical, 5)

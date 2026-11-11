@@ -69,7 +69,7 @@ struct TaskDetailView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(task.repoLabel).font(.caption.bold()).foregroundStyle(.secondary)
+                            Text(task.repoLabel).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                             if let ticket = task.ticket { Chip(text: ticket, color: .blue) }
                             if task.isBase { Chip(text: "base") }
                             if task.merged { Chip(text: "merged", color: .green) }
@@ -85,13 +85,13 @@ struct TaskDetailView: View {
                     if let detail = store.detail, detail.task.id == task.id {
                         if let changes = detail.changes, !changes.isEmpty {
                             DetailSection(title: "Uncommitted (\(changes.count))") {
-                                ForEach(changes.prefix(8), id: \.self) { Text($0).font(.system(size: 11, design: .monospaced)).lineLimit(1) }
-                                if changes.count > 8 { Text("… \(changes.count - 8) more").font(.caption).foregroundStyle(.secondary) }
+                                ForEach(changes.prefix(8), id: \.self) { Text($0).font(.system(size: 12, design: .monospaced)).lineLimit(1) }
+                                if changes.count > 8 { Text("… \(changes.count - 8) more").font(.system(size: 12)).foregroundStyle(.secondary) }
                             }
                         }
                         if let log = detail.log, !log.isEmpty {
                             DetailSection(title: "Commits") {
-                                ForEach(log, id: \.self) { Text($0).font(.system(size: 11)).lineLimit(1).foregroundStyle(.secondary) }
+                                ForEach(log, id: \.self) { Text($0).font(.system(size: 12)).lineLimit(1).foregroundStyle(.secondary) }
                             }
                         }
                     } else {
@@ -136,14 +136,14 @@ struct TaskDetailView: View {
                     }
                 }
             }
-            .font(.system(size: 12))
+            .font(.system(size: 13))
         }
     }
 
     private func sessions(_ task: WkTask) -> some View {
         DetailSection(title: "Claude sessions (\(task.sessions.count))") {
             if task.sessions.isEmpty {
-                Text("None yet — ↵ starts one in a new workspace.").font(.caption).foregroundStyle(.secondary)
+                Text("None yet — ↵ starts one in a new workspace.").font(.system(size: 12)).foregroundStyle(.secondary)
             }
             ForEach(task.sessions.prefix(6)) { session in
                 Button { store.open(task, session: session.id) } label: {
@@ -154,7 +154,7 @@ struct TaskDetailView: View {
             }
             if task.sessions.count > 6 {
                 Button("All \(task.sessions.count) sessions… (⌘R)") { store.overlay = .pickSession(taskID: task.id) }
-                    .buttonStyle(.link).font(.caption)
+                    .buttonStyle(.link).font(.system(size: 12))
             }
         }
     }
@@ -171,7 +171,7 @@ struct SessionsPane: View {
             VStack(spacing: 0) {
                 Toggle("Include trash", isOn: $store.includeTrash)
                     .toggleStyle(.checkbox)
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12).padding(.top, 6)
                     .onChange(of: store.includeTrash) { _, _ in store.searchSessions() }
@@ -211,7 +211,7 @@ struct SessionDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         SessionStateIcon(session: session)
-                        Text(session.state.rawValue.capitalized).font(.caption.bold()).foregroundStyle(.secondary)
+                        Text(session.state.rawValue.capitalized).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                     }
                     Text(session.displayTitle).font(.title3.weight(.semibold)).textSelection(.enabled)
                     if let prompt = session.firstPrompt, prompt != session.displayTitle {
@@ -227,9 +227,9 @@ struct SessionDetailView: View {
                             GridRow { Text("Started").foregroundStyle(.secondary); Text(session.start.formatted(date: .abbreviated, time: .shortened)) }
                             GridRow { Text("Last").foregroundStyle(.secondary); Text(session.last.formatted(date: .abbreviated, time: .shortened)) }
                             GridRow { Text("Prompts").foregroundStyle(.secondary); Text("\(session.prompts)") }
-                            GridRow { Text("ID").foregroundStyle(.secondary); Text(session.id).font(.system(size: 11, design: .monospaced)).textSelection(.enabled) }
+                            GridRow { Text("ID").foregroundStyle(.secondary); Text(session.id).font(.system(size: 12, design: .monospaced)).textSelection(.enabled) }
                         }
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                     }
                     HStack {
                         Button(session.cwdExists ? "Resume" : "Recreate folder & resume") { store.resume(session, recreate: !session.cwdExists) }
@@ -325,7 +325,7 @@ struct CleanupPane: View {
                 Text(title)
                 Text("\(count)").monospacedDigit().foregroundStyle(.secondary)
             }
-            .font(.system(size: 12, weight: active ? .semibold : .regular))
+            .font(.system(size: 13, weight: active ? .semibold : .regular))
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(active ? Color.white.opacity(0.12) : Color.white.opacity(0.04), in: Capsule())
             .overlay(Capsule().strokeBorder(.white.opacity(active ? 0.18 : 0.06)))
@@ -363,16 +363,16 @@ struct CleanupPane: View {
         return VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Label((group.first?.kindLabel ?? kind).uppercased(), systemImage: info.symbol)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(info.color)
-                Text("\(group.count)").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Text("\(group.count)").font(.system(size: 12)).foregroundStyle(.tertiary)
                 Spacer()
                 Button(allSelected ? "Deselect group" : "Select group") {
                     if allSelected { selected.subtract(ids) } else { selected.formUnion(ids) }
                 }
-                .buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
+                .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(.secondary)
             }
-            Text(info.blurb).font(.caption).foregroundStyle(.tertiary)
+            Text(info.blurb).font(.system(size: 12)).foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 10)
         .padding(.top, 18).padding(.bottom, 6)
@@ -388,24 +388,24 @@ struct CleanupPane: View {
             let label = store.snapshot.repos?.first { $0.path == item.repo }?.label ?? item.repoName.uppercased()
             if !item.title.hasPrefix(label + " ") {
                 Text(label)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 4))
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(item.reason).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(item.reason).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
             if item.safe {
-                Label("Safe", systemImage: "checkmark.shield").font(.caption).foregroundStyle(.green.opacity(0.85))
+                Label("Safe", systemImage: "checkmark.shield").font(.system(size: 12)).foregroundStyle(.green.opacity(0.85))
             } else {
                 Label(riskText(item), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
+                    .font(.system(size: 12)).foregroundStyle(.orange)
             }
             Text(RelativeTime.short(item.last))
-                .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                .font(.system(size: 12).monospacedDigit()).foregroundStyle(.tertiary)
                 .frame(width: 34, alignment: .trailing)
         }
         .padding(.horizontal, 10).padding(.vertical, 8)
@@ -444,7 +444,7 @@ struct CleanupPane: View {
 
             if !chosen.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("WHAT HAPPENS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+                    Text("WHAT HAPPENS").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
                     if tasks > 0 {
                         Label("\(tasks) worktree folder\(tasks == 1 ? "" : "s") and local branch\(tasks == 1 ? "" : "es") removed, cmux workspaces closed",
                               systemImage: "trash")
@@ -464,7 +464,7 @@ struct CleanupPane: View {
                           systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.callout.weight(.medium))
                     Toggle("Remove them anyway (uncommitted and unpushed work is lost)", isOn: $force)
-                        .toggleStyle(.checkbox).font(.caption)
+                        .toggleStyle(.checkbox).font(.system(size: 12))
                 }
                 .padding(12)
                 .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
@@ -485,7 +485,7 @@ struct CleanupPane: View {
             .disabled(chosen.isEmpty || blocked)
             if blocked {
                 Text("Tick “Remove them anyway” or deselect the items marked in orange.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
             }
             Spacer()
         }

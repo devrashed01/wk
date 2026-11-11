@@ -53,7 +53,7 @@ struct Chip: View {
             if let systemImage { Image(systemName: systemImage) }
             Text(text)
         }
-        .font(.system(size: 10, weight: .medium))
+        .font(.system(size: 11, weight: .medium))
         .padding(.horizontal, 5)
         .padding(.vertical, 1.5)
         .background(color.opacity(0.15), in: Capsule())
@@ -68,11 +68,11 @@ struct KeyHint: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(keys)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 3))
-            Text(label).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(label).font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 }
@@ -85,7 +85,7 @@ struct TaskRow: View {
         HStack(spacing: 8) {
             TaskStatusIcon(task: task)
             Text(task.repoLabel)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
                 .lineLimit(1)
@@ -95,7 +95,7 @@ struct TaskRow: View {
                     Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 }
                 Text(task.latestSession?.displayTitle ?? task.subject ?? "")
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -104,7 +104,7 @@ struct TaskRow: View {
             if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue) }
             if !task.hasFolder && !task.detached { Chip(text: "no folder") }
             Text(RelativeTime.short(task.lastActivity))
-                .font(.system(size: 11).monospacedDigit())
+                .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 30, alignment: .trailing)
         }
@@ -130,14 +130,14 @@ struct SessionRow: View {
                     Text(session.branch.isEmpty ? PathDisplay.collapse(session.cwd) : session.branch)
                     if session.trashed == true { Text("in trash").foregroundStyle(.red) }
                 }
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
             Spacer(minLength: 4)
-            Text("\(session.prompts)").font(.system(size: 10).monospacedDigit()).foregroundStyle(.tertiary).help("prompts")
+            Text("\(session.prompts)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary).help("prompts")
             Text(RelativeTime.short(session.last))
-                .font(.system(size: 11).monospacedDigit())
+                .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 30, alignment: .trailing)
         }
@@ -154,7 +154,7 @@ struct DetailSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+            Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
             content
         }
     }
@@ -169,7 +169,7 @@ struct EmptyState: View {
         VStack(spacing: 6) {
             Image(systemName: symbol).font(.system(size: 28)).foregroundStyle(.tertiary)
             Text(title).font(.headline)
-            if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+            if let subtitle { Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary).multilineTextAlignment(.center) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()

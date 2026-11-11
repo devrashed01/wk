@@ -54,15 +54,15 @@ struct NewTaskOverlay: View {
                     Text(store.config?.autoStartClaude == true
                          ? "Claude starts right away (Settings → Claude)."
                          : "`claude` is typed in the tab; press Enter to start it (Settings → Claude).")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
                 }
             }
             .formStyle(.columns)
-            if let preview { Text(preview).font(.caption).foregroundStyle(.secondary) }
-            if let problem { Text(problem).font(.caption).foregroundStyle(.red) }
-            if let loadError { Text(loadError).font(.caption).foregroundStyle(.red) }
+            if let preview { Text(preview).font(.system(size: 12)).foregroundStyle(.secondary) }
+            if let problem { Text(problem).font(.system(size: 12)).foregroundStyle(.red) }
+            if let loadError { Text(loadError).font(.system(size: 12)).foregroundStyle(.red) }
             HStack {
-                Text("Runs in the background — you can keep working.").font(.caption).foregroundStyle(.secondary)
+                Text("Runs in the background — you can keep working.").font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { store.overlay = nil }
                 Button("Create & open", action: create)
@@ -70,7 +70,7 @@ struct NewTaskOverlay: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(problem != nil)
             }
-            Text("⌘↵ to create").font(.caption2).foregroundStyle(.tertiary).frame(maxWidth: .infinity, alignment: .trailing)
+            Text("⌘↵ to create").font(.system(size: 11)).foregroundStyle(.tertiary).frame(maxWidth: .infinity, alignment: .trailing)
         }
         .onAppear {
             repo = seed.repo ?? store.snapshot.repos?.first?.path ?? ""
@@ -164,7 +164,7 @@ struct RemoveOverlay: View {
                                 .toggleStyle(.checkbox)
                                 .disabled(!option.available)
                             if let reason = option.reason {
-                                Text(reason).font(.caption).foregroundStyle(option.available ? .orange : .secondary).padding(.leading, 20)
+                                Text(reason).font(.system(size: 12)).foregroundStyle(option.available ? .orange : .secondary).padding(.leading, 20)
                             }
                         }
                     }
@@ -222,7 +222,7 @@ struct RemoveOverlay: View {
             GridRow { Text("Sessions").foregroundStyle(.secondary); Text("\(facts.sessions)" + (facts.liveSessions > 0 ? " (\(facts.liveSessions) running — kept)" : "")) }
             GridRow { Text("cmux").foregroundStyle(.secondary); Text(facts.workspace?.title ?? "not open") }
         }
-        .font(.system(size: 12))
+        .font(.system(size: 13))
     }
 
     private func losesWork(_ plan: RemovePlan) -> Bool {

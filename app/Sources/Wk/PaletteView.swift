@@ -78,7 +78,7 @@ struct PaletteLayout: View {
                 VStack {
                     Spacer()
                     Text(toast)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(.thickMaterial, in: Capsule())
                         .shadow(radius: 6)
@@ -202,6 +202,14 @@ struct PaletteLayout: View {
                 EmptyView()
             }
             KeyHint(keys: "⌘1–4 ⌘←→", label: "Tabs")
+            // Activities that run while the palette stays open (cleanup, settings) show here.
+            if let activity = store.activities.first, !activity.done {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text(activity.lines.last ?? activity.title).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .frame(maxWidth: 320)
+            }
         }
     }
 

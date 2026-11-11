@@ -54,6 +54,7 @@ bundle:
 	cp $(APP_BINARY) $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 	cp $(CORE_BINARY) $(APP_BUNDLE)/Contents/Resources/wk
 	cp app/Resources/Info.plist $(APP_BUNDLE)/Contents/Info.plist
+	cp app/Resources/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(APP_BUNDLE)/Contents/Info.plist
 
 # Sign inside-out: the bundled CLI first, then the app.

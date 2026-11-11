@@ -70,7 +70,7 @@ struct SettingsPane: View {
                 Button { category = item } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.symbol)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 24, height: 24)
                             .background(item.color.gradient, in: RoundedRectangle(cornerRadius: 6))
@@ -86,11 +86,11 @@ struct SettingsPane: View {
             Spacer()
             if let savedAt {
                 Label("Saved", systemImage: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
                     .id(savedAt)
                     .transition(.opacity)
             }
-            Text("~/.config/wk/config.toml").font(.caption2).foregroundStyle(.tertiary)
+            Text("~/.config/wk/config.toml").font(.system(size: 11)).foregroundStyle(.tertiary)
         }
         .padding(12)
         .frame(width: 200)
@@ -150,7 +150,7 @@ private struct SettingsPage<Content: View>: View {
 private struct Hint: View {
     let text: String
     init(_ text: String) { self.text = text }
-    var body: some View { Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+    var body: some View { Text(text).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
 }
 
 private struct GeneralSettings: View {
@@ -263,8 +263,8 @@ private struct RepoSettingsPage: View {
             List(selection: $selected) {
                 ForEach(store.snapshot.repos ?? []) { repo in
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(repo.label).font(.system(size: 12, weight: .semibold))
-                        Text(repo.name).font(.caption).foregroundStyle(.secondary)
+                        Text(repo.label).font(.system(size: 13, weight: .semibold))
+                        Text(repo.name).font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                     .tag(repo.path)
                 }
@@ -314,7 +314,7 @@ private struct RepoEditor: View {
                                          let lines = text.split(separator: "\n").map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                                          settings.postWorktree = lines.isEmpty ? nil : lines
                                      }))
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 13, design: .monospaced))
                 .frame(height: 64)
                 .scrollContentBackground(.hidden)
                 .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))

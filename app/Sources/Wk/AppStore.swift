@@ -127,13 +127,6 @@ final class AppStore {
             ?? (snapshot.tasks ?? []).lazy.flatMap(\.sessions).first { $0.id == id }
     }
 
-    var pinnedAndRecent: [WkTask] {
-        let tasks = (snapshot.tasks ?? []).filter { !$0.isFolded && !$0.hidden }
-        let live = tasks.filter { $0.pinned || $0.isOpen || $0.running + $0.waiting > 0 }
-        let recent = tasks.filter { !live.contains($0) }.prefix(max(0, 10 - live.count))
-        return Array(live) + recent
-    }
-
     // MARK: Lifecycle
 
     func start() {
