@@ -23,19 +23,21 @@ It's light: about 40 MB RAM at idle and no polling, since it uses FSEvents.
 
 ## Install
 
-1. Download `Wk-<version>-macos.zip` from [Releases](https://github.com/devrashed01/wk/releases), unzip it and move `Wk.app` to `/Applications`.
-2. The app is signed with the author's personal certificate but **not notarized**, so macOS blocks it on first launch. Allow it once, either:
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/Wk.app
-   ```
-   or open it, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
-3. Optional: add the CLI to your PATH. It ships inside the app.
-   ```sh
-   sudo ln -sf /Applications/Wk.app/Contents/Resources/wk /usr/local/bin/wk
-   ```
-   For the CLI alone, use `wk-<version>-darwin-universal.tar.gz` from the same release.
+**One line (recommended):**
 
-Checksums are in `SHA256SUMS.txt`.
+```sh
+curl -fsSL https://raw.githubusercontent.com/devrashed01/wk/main/install.sh | sh
+```
+
+This installs the latest `Wk.app` into `/Applications` (or `~/Applications`), puts `wk` on your PATH, and starts it. Run it again any time to update. The script checks the download against the release checksums. You can set `WK_VERSION=x.y.z` to pin a version.
+
+**DMG:** download `Wk-<version>.dmg` from [Releases](https://github.com/devrashed01/wk/releases), open it, and drag **Wk** onto **Applications**. The app is signed with the author's personal certificate but is not notarized, so the first time you open it, macOS blocks it. Right-click Wk → **Open**, or go to **System Settings → Privacy & Security → Open Anyway**. (The curl install skips this step.) To also get the CLI:
+
+```sh
+sudo ln -sf /Applications/Wk.app/Contents/Resources/wk /usr/local/bin/wk
+```
+
+**CLI only:** `wk-<version>-darwin-universal.tar.gz` from the same release.
 
 ## Configure
 

@@ -87,11 +87,21 @@ ifneq ($(strip $(NOTARY_PROFILE)),)
 	rm $(DIST)/$(APP_NAME)-$(VERSION)-macos.zip
 	ditto -c -k --keepParent $(APP_BUNDLE) $(DIST)/$(APP_NAME)-$(VERSION)-macos.zip
 endif
+	rm -rf $(DIST)/dmg && mkdir -p $(DIST)/dmg
+	cp -R $(APP_BUNDLE) $(DIST)/dmg/
+	ln -s /Applications $(DIST)/dmg/Applications
+	hdiutil create -volname "$(APP_NAME)" -srcfolder $(DIST)/dmg -ov -format UDZO $(DIST)/$(APP_NAME)-$(VERSION).dmg
+	rm -rf $(DIST)/dmg
+	codesign --force $(if $(findstring Developer ID,$(SIGN_IDENTITY)),--timestamp,) --sign "$(SIGN_IDENTITY)" $(DIST)/$(APP_NAME)-$(VERSION).dmg
+ifneq ($(strip $(NOTARY_PROFILE)),)
+	xcrun notarytool submit $(DIST)/$(APP_NAME)-$(VERSION).dmg --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple $(DIST)/$(APP_NAME)-$(VERSION).dmg
+endif
 	cp core/bin/wk-universal $(DIST)/wk
 	codesign --force $(SIGN_FLAGS) --sign "$(SIGN_IDENTITY)" $(DIST)/wk
 	tar -czf $(DIST)/wk-$(VERSION)-darwin-universal.tar.gz -C $(DIST) wk
 	rm $(DIST)/wk
-	cd $(DIST) && shasum -a 256 *.zip *.tar.gz > SHA256SUMS.txt
+	cd $(DIST) && shasum -a 256 *.dmg *.zip *.tar.gz > SHA256SUMS.txt
 	@echo "Release artifacts in $(DIST)/ (signed with: $(SIGN_IDENTITY))"
 
 uninstall:
