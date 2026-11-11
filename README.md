@@ -2,6 +2,8 @@
 
 A macOS menu-bar app and CLI for keeping track of your repos, feature branches, git worktrees and the [Claude Code](https://claude.com/claude-code) session that belongs to each, built on top of [cmux](https://cmux.dev).
 
+**Website:** [devrashed01.github.io/wk](https://devrashed01.github.io/wk/)
+
 You stop hunting for branch names and lost Claude sessions. Press a hotkey, type a ticket or a word, hit ↵, and you're back in that task with its server, Claude and git panes (⌘↵ for a single Claude pane).
 
 - **⌥Space** opens the search window from anywhere. Type a ticket (`ABC-123` or `123`), a branch, a repo or a session title, then press **↵** to jump there. Wk focuses the running Claude, selects its cmux workspace, or opens a new *server | claude | git* workspace and resumes the latest session.
