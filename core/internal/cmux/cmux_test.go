@@ -1,6 +1,11 @@
 package cmux
 
-import "testing"
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLayoutMatchesCmuxSchema(t *testing.T) {
 	got := Layout("yarn dev", "claude --resume abc")
@@ -33,5 +38,16 @@ func TestParseWorkspacesUsesCustomTitle(t *testing.T) {
 	}
 	if workspaces[0].Title != "ADMIN" || workspaces[0].Cwd != "/r/admin" || workspaces[0].Ports[0] != 3000 {
 		t.Errorf("got %+v", workspaces[0])
+	}
+}
+
+func TestAccessDeniedIsReported(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "cmux")
+	script := "#!/bin/sh\necho 'Error: ERROR: Access denied - only processes started inside cmux can connect' >&2\nexit 1\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(bin).Workspaces(); !errors.Is(err, ErrAccessDenied) {
+		t.Fatalf("want ErrAccessDenied, got %v", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"wk/internal/cmux"
 	"wk/internal/gitops"
 )
 
@@ -142,6 +143,9 @@ type openTarget struct {
 func (service *Service) openAt(target openTarget) (OpenResult, error) {
 	cwd := target.cwd
 	if err := service.ensureCmux(); err != nil {
+		if errors.Is(err, cmux.ErrAccessDenied) {
+			return OpenResult{}, err
+		}
 		command := joinCommands("cd "+shellQuote(cwd), target.setupCmd, target.claudeCmd)
 		return OpenResult{Action: "printed", Cwd: cwd, Command: command, Message: "cmux is not running; run this in a terminal"}, nil
 	}
@@ -175,8 +179,9 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 }
 
 func (service *Service) ensureCmux() error {
-	if _, err := service.Cmux.Workspaces(); err == nil {
-		return nil
+	_, err := service.Cmux.Workspaces()
+	if err == nil || errors.Is(err, cmux.ErrAccessDenied) {
+		return err // denied: cmux is up, so waiting for it would not help
 	}
 	service.Cmux.Activate()
 	deadline := time.Now().Add(8 * time.Second)

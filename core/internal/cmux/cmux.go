@@ -4,6 +4,7 @@ package cmux
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,6 +16,12 @@ import (
 )
 
 type Client struct{ Bin string }
+
+// ErrAccessDenied means cmux is running but its socket only accepts processes started inside cmux
+// (the default "cmuxOnly" mode), so an app launched outside cmux, like Wk.app, cannot control it.
+var ErrAccessDenied = errors.New(`cmux blocked wk: it only accepts processes started inside cmux. ` +
+	`In cmux Settings → Automation, set socket control to "Automation mode" ` +
+	`(or add "automation": {"socketControlMode": "automation"} to ~/.config/cmux/cmux.json and run "cmux reload-config")`)
 
 func New(bin string) Client {
 	if bin == "" {
@@ -31,6 +38,9 @@ func (client Client) run(args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		message := strings.TrimSpace(stderr.String())
+		if strings.Contains(message, "Access denied") {
+			return nil, ErrAccessDenied
+		}
 		if message == "" {
 			message = err.Error()
 		}
