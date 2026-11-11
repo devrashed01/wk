@@ -8,10 +8,12 @@ struct TasksPane: View {
 
     var body: some View {
         let tasks = store.visibleTasks
+        VStack(alignment: .leading, spacing: 10) {
+        worktreeToggle
         HStack(spacing: 0) {
             if tasks.isEmpty {
-                EmptyState(symbol: "tray", title: store.query.isEmpty ? "No tasks yet" : "No matches",
-                           subtitle: "Press ⌘N to create a branch or worktree.")
+                EmptyState(symbol: "tray", title: store.worktreesOnly ? "No worktrees" : store.query.isEmpty ? "No tasks yet" : "No matches",
+                           subtitle: store.worktreesOnly ? "Turn off \"Worktrees only\" to see every task." : "Press ⌘N to create a branch or worktree.")
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -30,13 +32,35 @@ struct TasksPane: View {
                         if let id { proxy.scrollTo(id) }
                     }
                 }
-                .frame(minWidth: 380, idealWidth: 480, maxWidth: 520)
+                .frame(minWidth: 420, idealWidth: 600, maxWidth: 680)
                 Spacer().frame(width: 40)
                 TaskDetailView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        }
         .onAppear { store.selectionChanged() }
+    }
+
+    private var worktreeToggle: some View {
+        @Bindable var store = store
+        return Button {
+            store.worktreesOnly.toggle()
+            store.selectionChanged()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: store.worktreesOnly ? "checkmark.circle.fill" : "arrow.triangle.branch")
+                Text("Worktrees only")
+            }
+            .font(.system(size: 12, weight: .medium))
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .foregroundStyle(store.worktreesOnly ? Color.teal : .secondary)
+            .background(store.worktreesOnly ? Color.teal.opacity(0.16) : Color.white.opacity(0.05), in: Capsule())
+            .overlay(Capsule().strokeBorder(store.worktreesOnly ? Color.teal.opacity(0.4) : Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 6)
+        .help("Show only tasks checked out in their own worktree folder")
     }
 
     private func select(_ task: WkTask) {
@@ -129,8 +153,25 @@ struct TaskDetailView: View {
                 if let path = task.path, !path.isEmpty {
                     Text(PathDisplay.collapse(path) + (task.mainWorktree ? "" : "  (worktree)")).textSelection(.enabled)
                 } else {
-                    Text("not checked out — opening will ask how").foregroundStyle(.secondary)
+                    Text("Not checked out").foregroundStyle(.orange)
                 }
+            }
+            if (task.path ?? "").isEmpty && !task.detached {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "folder.badge.questionmark").foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("This branch has no folder on disk").font(.system(size: 13, weight: .semibold))
+                        Text("No worktree or main checkout has \(task.branch) checked out right now. Its worktree may have been removed, or the main folder switched to another branch. The branch and its Claude sessions are still kept.")
+                            .foregroundStyle(.secondary)
+                        Text("Press ↵ to choose: a new worktree (recommended, leaves your main folder alone) or switch the main folder to this branch.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.system(size: 13))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
             FactRow(label: "cmux") {
                 if let workspace = task.workspace {
@@ -246,7 +287,7 @@ struct SessionsPane: View {
                     }
                 }
             }
-            .frame(minWidth: 380, idealWidth: 480, maxWidth: 520)
+            .frame(minWidth: 420, idealWidth: 600, maxWidth: 680)
             Spacer().frame(width: 40)
             SessionDetailView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

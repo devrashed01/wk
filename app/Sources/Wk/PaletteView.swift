@@ -60,7 +60,7 @@ struct PaletteLayout: View {
                     }
                     .padding(.top, geometry.size.height * 0.09)
                     content
-                        .frame(maxWidth: min(1320, geometry.size.width * 0.92), maxHeight: .infinity)
+                        .frame(maxWidth: min(1760, geometry.size.width - 64), maxHeight: .infinity)
                         .padding(.top, geometry.size.height * 0.04)
                     hintBar
                         .padding(.vertical, 18)

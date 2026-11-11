@@ -92,6 +92,10 @@ struct TaskRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
                     if task.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.yellow) }
+                    if task.isLinkedWorktree {
+                        Image(systemName: "arrow.triangle.branch").font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.teal).help("Worktree — its own folder, separate from the main checkout")
+                    }
                     Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 }
                 Text(task.latestSession?.displayTitle ?? task.subject ?? "")
@@ -102,7 +106,8 @@ struct TaskRow: View {
             Spacer(minLength: 4)
             if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil") }
             if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue) }
-            if !task.hasFolder && !task.detached { Chip(text: "no folder") }
+            if !task.hasFolder && !task.detached { Chip(text: "not checked out", systemImage: "folder.badge.questionmark")
+                    .help("This branch has no folder on disk. Opening it asks where to check it out.") }
             TimeLabel(date: task.lastActivity)
         }
         .padding(.horizontal, 8)

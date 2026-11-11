@@ -118,6 +118,8 @@ public struct WkTask: Codable, Hashable, Identifiable, Sendable {
     public var envBranches: [String]?
 
     public var hasFolder: Bool { !(path ?? "").isEmpty }
+    /// Checked out in a separate worktree folder, not the repo's main checkout.
+    public var isLinkedWorktree: Bool { hasFolder && !mainWorktree }
     public var isOpen: Bool { workspace != nil }
     public var isFolded: Bool { !(parentId ?? "").isEmpty }
     public var latestSession: Session? { sessions.first }

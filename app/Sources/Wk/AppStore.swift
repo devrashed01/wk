@@ -107,7 +107,13 @@ final class AppStore {
 
     // MARK: Derived
 
-    var visibleTasks: [WkTask] { TaskFilter.tasks(snapshot.tasks ?? [], query: query) }
+    var worktreesOnly = UserDefaults.standard.bool(forKey: "worktreesOnly") {
+        didSet { UserDefaults.standard.set(worktreesOnly, forKey: "worktreesOnly") }
+    }
+    var visibleTasks: [WkTask] {
+        let all = TaskFilter.tasks(snapshot.tasks ?? [], query: query)
+        return worktreesOnly ? all.filter(\.isLinkedWorktree) : all
+    }
     var visibleCleanup: [CleanupItem] { TaskFilter.cleanup(cleanupItems, query: query) }
     var status: MenuBarStatus { MenuBarStatus(counts: snapshot.counts, cmuxRunning: snapshot.cmuxRunning) }
 
