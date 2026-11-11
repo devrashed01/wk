@@ -67,7 +67,9 @@ struct PaletteLayout: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            closeHint
+            .opacity(store.overlay == nil ? 1 : 0)
+            .allowsHitTesting(store.overlay == nil)
+            if store.overlay == nil { closeHint }
 
             if let overlay = store.overlay {
                 OverlayHost(overlay: overlay)
@@ -86,13 +88,14 @@ struct PaletteLayout: View {
                 .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.15), value: store.overlay)
         .background(shortcuts)
         .onAppear { searchFocused = true }
         .onReceive(NotificationCenter.default.publisher(for: .wkFocusSearch)) { _ in
             searchFocused = false
             DispatchQueue.main.async { searchFocused = true }
         }
-        .onChange(of: store.overlay) { _, overlay in if overlay == nil { searchFocused = true } }
+        .onChange(of: store.overlay) { _, overlay in searchFocused = overlay == nil }
         .onChange(of: store.query) { _, _ in queryChanged() }
         .onChange(of: store.tab) { _, tab in tabChanged(tab) }
     }
@@ -105,9 +108,13 @@ struct PaletteLayout: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 24))
                 .focused($searchFocused)
-                .onKeyPress(.upArrow) { move(-1); return .handled }
-                .onKeyPress(.downArrow) { move(1); return .handled }
-                .onKeyPress(keys: [.return]) { press in primaryAction(single: press.modifiers.contains(.command)); return .handled }
+                // While an overlay is open it owns the keyboard; never drive the list behind it.
+                .onKeyPress(.upArrow) { guard store.overlay == nil else { return .ignored }; move(-1); return .handled }
+                .onKeyPress(.downArrow) { guard store.overlay == nil else { return .ignored }; move(1); return .handled }
+                .onKeyPress(keys: [.return]) { press in
+                    guard store.overlay == nil else { return .ignored }
+                    primaryAction(single: press.modifiers.contains(.command)); return .handled
+                }
             if !store.snapshot.cmuxRunning && store.snapshot.generatedAt > .distantPast {
                 Chip(text: "cmux not running", color: .orange, systemImage: "exclamationmark.triangle")
             }

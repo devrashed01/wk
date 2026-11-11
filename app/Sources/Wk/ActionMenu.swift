@@ -26,8 +26,12 @@ struct ActionMenuOverlay: View {
 
     var body: some View {
         OverlayCard(title: title, width: 460) {
-            TextField("Type to filter actions…", text: $filter)
-                .textFieldStyle(.roundedBorder)
+            TextField("Type to filter…", text: $filter)
+                .textFieldStyle(.plain)
+                .font(.system(size: 18))
+                .padding(.horizontal, 16).padding(.vertical, 12)
+                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.10)))
                 .focused($focused)
                 .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                 .onKeyPress(.downArrow) { selection = min(selection + 1, visible.count - 1); return .handled }
@@ -58,13 +62,21 @@ struct ActionMenuOverlay: View {
                         }
                     }
                 }
-                .frame(maxHeight: 340)
+                .frame(maxHeight: 480)
                 .onChange(of: selection) { _, index in
                     if visible.indices.contains(index) { proxy.scrollTo(visible[index].id) }
                 }
             }
         }
-        .onAppear { focused = true }
+        // The overlay often opens mid key-press (↵ in the search field), when a plain focus request is
+        // dropped; ask again after the event finishes, and once more after the overlay has settled.
+        .task {
+            focused = true
+            await Task.yield()
+            focused = true
+            try? await Task.sleep(for: .milliseconds(80))
+            focused = true
+        }
     }
 
     private func run(_ index: Int) {
@@ -194,27 +206,20 @@ struct CheckoutOverlay: View {
     let session: String?
     let single: Bool
     @Environment(AppStore.self) private var store
-    @FocusState private var focused: Bool
 
+    /// Same keyboard list as ⌘K: ↑↓ to pick, ↵ to open, esc to cancel.
     var body: some View {
         if let task = store.task(taskID) {
-            OverlayCard(title: "\(task.branch) has no folder") {
-                Text("How do you want to open it?").foregroundStyle(.secondary)
-                VStack(spacing: 8) {
-                    Button { choose(task, "worktree") } label: {
-                        Label("New worktree folder  ·  \(PathDisplay.collapse(task.repo))-…", systemImage: "folder.badge.plus").frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .focused($focused)
-                    Button { choose(task, "switch") } label: {
-                        Label("Switch the main \(task.repoLabel) folder to this branch", systemImage: "arrow.uturn.right").frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    Text("A worktree keeps whatever the main folder is doing untouched (recommended when something is running there).")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .controlSize(.large)
-            }
-            .onAppear { focused = true }
+            ActionMenuOverlay(title: "\(task.branch) has no folder. Open it how?", items: [
+                ActionItem(id: "worktree", section: "Recommended: keeps the main folder untouched",
+                           title: "New worktree folder  ·  \(PathDisplay.collapse(task.repo))-…", symbol: "folder.badge.plus", hint: "↵") {
+                    choose(task, "worktree")
+                },
+                ActionItem(id: "switch", section: "Main folder",
+                           title: "Switch the main \(task.repoLabel) folder to this branch", symbol: "arrow.uturn.right") {
+                    choose(task, "switch")
+                },
+            ])
         }
     }
 

@@ -176,7 +176,8 @@ struct EmptyState: View {
     }
 }
 
-/// A modal card shown over the palette content.
+/// A modal step shown in place of the palette content: same full-screen backdrop, no card.
+/// The main layout fades out behind it (see PaletteLayout); clicking empty space or esc closes it.
 struct OverlayCard<Content: View>: View {
     let title: String
     var width: CGFloat = 520
@@ -184,23 +185,24 @@ struct OverlayCard<Content: View>: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.25)
-                .onTapGesture { store.overlay = nil }
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(title).font(.headline)
-                    Spacer()
-                    Button { store.overlay = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                        .buttonStyle(.plain)
-                        .help("Close (esc)")
+        GeometryReader { geometry in
+            ZStack(alignment: .top) {
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture { store.overlay = nil }
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(title).font(.system(size: 24, weight: .semibold)).lineLimit(2)
+                        Spacer()
+                        Button { store.overlay = nil } label: { KeyHint(keys: "esc", label: "Back") }
+                            .buttonStyle(.plain)
+                    }
+                    content
                 }
-                content
+                .frame(width: min(max(width, 640), geometry.size.width - 48))
+                .padding(.top, geometry.size.height * 0.09)
             }
-            .padding(16)
-            .frame(width: width)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .shadow(radius: 20)
         }
+        .transition(.opacity)
     }
 }

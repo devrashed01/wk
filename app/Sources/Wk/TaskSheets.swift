@@ -77,6 +77,7 @@ struct NewTaskOverlay: View {
             from = seed.from
             ref = seed.ref ?? ""
             nameFocused = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { nameFocused = true }
             loadRefs()
         }
         .onChange(of: repo) { _, _ in ref = ""; loadRefs() }
