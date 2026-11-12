@@ -6,7 +6,7 @@ A macOS menu-bar app and CLI for keeping track of your repos, feature branches, 
 
 [![The wk task switcher](docs/img/tasks.png)](https://devrashed01.github.io/wk/wk-promo.mp4)
 
-▶ [Watch the 70-second tour](https://devrashed01.github.io/wk/wk-promo.mp4)
+▶ [Watch the 80-second tour](https://devrashed01.github.io/wk/wk-promo.mp4)
 
 You stop hunting for branch names and lost Claude sessions. Press a hotkey, type a ticket or a word, hit ↵, and you're back in that task with its server, Claude and git panes (⌘↵ for a single Claude pane).
 
