@@ -261,3 +261,136 @@ struct OverlayCard<Content: View>: View {
         .transition(.opacity)
     }
 }
+
+/// A select field with search: shows the current choice, and opens in place into a filter box
+/// over a short scrolling list. Type to narrow, ↑↓ to move, ↵ to choose, esc to close.
+struct SearchableSelect: View {
+    struct Option: Identifiable, Equatable {
+        let value: String
+        let label: String
+        var id: String { value }
+    }
+
+    let options: [Option]
+    @Binding var selection: String
+    var placeholder = "Choose…"
+    var searchPrompt = "Search…"
+
+    @State private var open = false
+    @State private var query = ""
+    @State private var highlighted = 0
+    @FocusState private var searching: Bool
+
+    private var matches: [Option] {
+        let terms = query.lowercased().split(separator: " ")
+        guard !terms.isEmpty else { return options }
+        return options.filter { option in terms.allSatisfy { option.label.lowercased().contains($0) } }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if open { searchField; list } else { closedField }
+        }
+        .onChange(of: query) { _, _ in highlighted = 0 }
+        .onChange(of: options) { _, _ in highlighted = 0 }
+    }
+
+    private var closedField: some View {
+        Button { show() } label: {
+            HStack(spacing: 6) {
+                Text(options.first { $0.value == selection }?.label ?? placeholder)
+                    .foregroundStyle(selection.isEmpty ? .secondary : .primary)
+                    .lineLimit(1).truncationMode(.middle)
+                Spacer(minLength: 4)
+                Text("\(options.count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.10)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Click to search \(options.count) choices")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(.secondary)
+            TextField("", text: $query, prompt: Text(searchPrompt))
+                .labelsHidden()
+                .textFieldStyle(.plain)
+                .focused($searching)
+                .onSubmit { choose(matches.indices.contains(highlighted) ? matches[highlighted] : nil) }
+                .onKeyPress(.downArrow) { move(1); return .handled }
+                .onKeyPress(.upArrow) { move(-1); return .handled }
+                .onKeyPress(.escape) { close(); return .handled }
+            Text("\(matches.count) of \(options.count)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor.opacity(0.8), lineWidth: 1.5))
+    }
+
+    private var list: some View {
+        let shown = Array(matches.prefix(200))
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 1) {
+                    if shown.isEmpty {
+                        Text("No match").font(.system(size: 12)).foregroundStyle(.secondary).padding(6)
+                    }
+                    ForEach(Array(shown.enumerated()), id: \.element.id) { index, option in
+                        HStack(spacing: 6) {
+                            Text(option.label).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 4)
+                            if option.value == selection { Image(systemName: "checkmark").font(.system(size: 11, weight: .semibold)) }
+                        }
+                        .font(.system(size: 13))
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(index == highlighted ? Color.accentColor.opacity(0.28) : .clear, in: RoundedRectangle(cornerRadius: 5))
+                        .contentShape(Rectangle())
+                        .onTapGesture { choose(option) }
+                        .id(index)
+                    }
+                    if matches.count > shown.count {
+                        Text("\(matches.count - shown.count) more — keep typing to narrow").font(.system(size: 11)).foregroundStyle(.tertiary).padding(6)
+                    }
+                }
+                .padding(3)
+            }
+            .frame(height: min(220, CGFloat(max(shown.count, 1)) * 27 + (matches.count > shown.count ? 30 : 8)))
+            .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.08)))
+            .onChange(of: highlighted) { _, index in proxy.scrollTo(index) }
+        }
+    }
+
+    private func show() {
+        query = ""
+        highlighted = max(0, options.firstIndex { $0.value == selection } ?? 0)
+        open = true
+        Task {
+            searching = true
+            try? await Task.sleep(for: .milliseconds(60))
+            searching = true
+        }
+    }
+
+    private func close() {
+        open = false
+        searching = false
+    }
+
+    private func move(_ delta: Int) {
+        guard !matches.isEmpty else { return }
+        highlighted = min(max(highlighted + delta, 0), min(matches.count, 200) - 1)
+    }
+
+    private func choose(_ option: Option?) {
+        if let option { selection = option.value }
+        close()
+    }
+}

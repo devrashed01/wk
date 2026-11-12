@@ -15,13 +15,15 @@ struct NewTaskOverlay: View {
     @State private var startClaude = true
     @State private var refs: RepoRefs?
     @State private var loadError: String?
+    @State private var seeded = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
         OverlayCard(title: "New task", width: 560) {
             Form {
-                Picker("Repo", selection: $repo) {
-                    ForEach(store.snapshot.repos ?? []) { repo in Text("\(repo.label)  ·  \(repo.name)").tag(repo.path) }
+                LabeledContent("Repo") {
+                    SearchableSelect(options: (store.snapshot.repos ?? []).map { .init(value: $0.path, label: "\($0.label)  ·  \($0.name)") },
+                                     selection: $repo, searchPrompt: "Search repos…")
                 }
                 Picker("Start from", selection: $from) {
                     Text("Latest \(refs?.baseBranch ?? "base")").tag("base")
@@ -31,9 +33,9 @@ struct NewTaskOverlay: View {
                 }
                 .pickerStyle(.segmented)
                 if from != "base" {
-                    Picker(fromLabel, selection: $ref) {
-                        Text("Choose…").tag("")
-                        ForEach(refList, id: \.self) { Text(PathDisplay.collapse($0)).tag($0) }
+                    LabeledContent(fromLabel) {
+                        SearchableSelect(options: refList.map { .init(value: $0, label: PathDisplay.collapse($0)) },
+                                         selection: $ref, searchPrompt: "Search \(refList.count) \(from == "worktree" ? "worktrees" : "branches")…")
                     }
                 }
                 Picker("Where", selection: $mode) {
@@ -79,8 +81,10 @@ struct NewTaskOverlay: View {
             nameFocused = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { nameFocused = true }
             loadRefs()
+            DispatchQueue.main.async { seeded = true }
         }
         .onChange(of: repo) { _, _ in ref = ""; loadRefs() }
+        .onChange(of: from) { _, _ in if seeded { ref = "" } }
     }
 
     private var fromLabel: String {
