@@ -42,8 +42,12 @@ This installs the latest `Wk.app` into `/Applications` (or `~/Applications`), pu
 **Homebrew:**
 
 ```sh
-brew install --cask devrashed01/wk/wk
+brew tap devrashed01/wk
+brew trust devrashed01/wk
+brew install --cask wk
 ```
+
+Recent Homebrew versions only install from a third-party tap after you trust it, which is what the second line does.
 
 **DMG:** download `Wk-<version>.dmg` from [Releases](https://github.com/devrashed01/wk/releases), open it, and drag **Wk** onto **Applications**. The app is signed with the author's personal certificate but is not notarized, so the first time you open it, macOS blocks it. Right-click Wk → **Open**, or go to **System Settings → Privacy & Security → Open Anyway**. (The curl install skips this step.) To also get the CLI:
 
