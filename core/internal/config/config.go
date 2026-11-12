@@ -15,6 +15,55 @@ type Repo struct {
 	BaseBranch   string   `toml:"base_branch,omitempty" json:"base_branch,omitempty"`
 	PostWorktree []string `toml:"post_worktree,omitempty" json:"post_worktree,omitempty"`
 	NoLayout     bool     `toml:"no_layout,omitempty" json:"no_layout,omitempty"`
+	// Layout overrides the global workspace layout for this repo.
+	Layout *Layout `toml:"layout,omitempty" json:"layout,omitempty"`
+}
+
+// Pane is one terminal in a new cmux workspace.
+//   - claude:  runs Claude (fresh or --resume)
+//   - server:  runs the repo's server_cmd
+//   - setup:   runs a new worktree's install steps, then stays open as a shell
+//   - shell:   an empty terminal
+//   - command: runs Command
+type Pane struct {
+	Kind    string `toml:"kind" json:"kind"`
+	Name    string `toml:"name,omitempty" json:"name,omitempty"`
+	Command string `toml:"command,omitempty" json:"command,omitempty"`
+}
+
+// Layout describes the panes of a new cmux workspace and how they are arranged:
+// main-left | main-right | main-top (first pane is the big one), columns, rows, grid, or tabs.
+type Layout struct {
+	Arrange  string `toml:"arrange" json:"arrange"`
+	MainSize int    `toml:"main_size,omitempty" json:"main_size,omitempty"` // percent, for main-*
+	Panes    []Pane `toml:"panes" json:"panes"`
+}
+
+// MaxPanes keeps a workspace readable; extra panes are ignored.
+const MaxPanes = 6
+
+// DefaultLayout is Claude on the left with the server above a git terminal on the right.
+func DefaultLayout() Layout {
+	return Layout{Arrange: "main-left", MainSize: 60, Panes: []Pane{
+		{Kind: "claude"}, {Kind: "server"}, {Kind: "shell", Name: "Git"},
+	}}
+}
+
+// Normalized fills gaps so callers can rely on a usable layout.
+func (layout Layout) Normalized() Layout {
+	if len(layout.Panes) == 0 {
+		return DefaultLayout()
+	}
+	if len(layout.Panes) > MaxPanes {
+		layout.Panes = layout.Panes[:MaxPanes]
+	}
+	if layout.Arrange == "" {
+		layout.Arrange = "main-left"
+	}
+	if layout.MainSize < 20 || layout.MainSize > 80 {
+		layout.MainSize = 60
+	}
+	return layout
 }
 
 type Config struct {
@@ -29,8 +78,10 @@ type Config struct {
 	// the command is only typed at the prompt, since resuming re-reads the whole transcript and costs tokens.
 	AutoStartClaude bool `toml:"auto_start_claude,omitempty" json:"auto_start_claude,omitempty"`
 	// LabelStripPrefixes are removed from repo folder names for short labels ("acme-web" -> "WEB").
-	LabelStripPrefixes []string        `toml:"label_strip_prefixes,omitempty" json:"label_strip_prefixes,omitempty"`
-	Repos              map[string]Repo `toml:"repo,omitempty" json:"repos,omitempty"`
+	LabelStripPrefixes []string `toml:"label_strip_prefixes,omitempty" json:"label_strip_prefixes,omitempty"`
+	// Layout is the cmux workspace layout for every repo without its own; nil means DefaultLayout.
+	Layout *Layout         `toml:"layout,omitempty" json:"layout,omitempty"`
+	Repos  map[string]Repo `toml:"repo,omitempty" json:"repos,omitempty"`
 }
 
 // DefaultRoots are the usual places people keep code; missing ones are skipped.

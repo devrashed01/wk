@@ -2,7 +2,7 @@ import SwiftUI
 import WkKit
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, claude, scanning, repos
+    case general, appearance, claude, layout, scanning, repos
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "General"
         case .appearance: "Appearance"
         case .claude: "Claude"
+        case .layout: "Layout"
         case .scanning: "Scanning"
         case .repos: "Repos"
         }
@@ -21,6 +22,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .appearance: "paintbrush"
         case .claude: "sparkles"
+        case .layout: "rectangle.split.2x1"
         case .scanning: "folder.badge.gearshape"
         case .repos: "shippingbox"
         }
@@ -31,6 +33,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: .gray
         case .appearance: .pink
         case .claude: .orange
+        case .layout: .purple
         case .scanning: .blue
         case .repos: .green
         }
@@ -102,6 +105,7 @@ struct SettingsPane: View {
         case .general: GeneralSettings()
         case .appearance: AppearanceSettings()
         case .claude: ClaudeSettings(draft: draft)
+        case .layout: LayoutSettings(draft: draft)
         case .scanning: ScanningSettings(draft: draft)
         case .repos: RepoSettingsPage(draft: draft)
         }
@@ -226,7 +230,7 @@ private struct ClaudeSettings: View {
             LabeledContent("Single Claude pane") {
                 Text("⌘↵ instead of ↵").foregroundStyle(.secondary)
             }
-            Hint("↵ opens a new workspace with Claude, server and git panes. ⌘↵ opens just Claude. To always use one pane for a repo, see Repos.")
+            Hint("↵ opens a new workspace with the panes set in Layout. ⌘↵ opens just Claude. To always use one pane for a repo, see Repos.")
         }
     }
 }
@@ -279,7 +283,7 @@ private struct RepoSettingsPage: View {
             .frame(width: 220)
             if let repo = selected {
                 SettingsPage(category: .repos, subtitle: PathDisplay.collapse(repo)) {
-                    RepoEditor(settings: binding(for: repo), baseBranch: draft.baseBranch)
+                    RepoEditor(settings: binding(for: repo), baseBranch: draft.baseBranch, globalLayout: draft.layout ?? .standard)
                 }
             } else {
                 EmptyState(symbol: "shippingbox", title: "Choose a repo", subtitle: "Set its server command, base branch, worktree setup and layout.")
@@ -304,6 +308,7 @@ private struct RepoSettingsPage: View {
 private struct RepoEditor: View {
     @Binding var settings: RepoSettings
     let baseBranch: String
+    let globalLayout: LayoutConfig
 
     var body: some View {
         TextField("Server command", text: Binding(get: { settings.serverCmd ?? "" },
@@ -328,7 +333,17 @@ private struct RepoEditor: View {
         VStack(alignment: .leading, spacing: 4) {
             Toggle("Always use a single Claude pane", isOn: Binding(get: { settings.noLayout ?? false },
                                                                      set: { settings.noLayout = $0 ? true : nil }))
-            Hint("Skips the server and git panes for this repo, as if you always pressed ⌘↵.")
+            Hint("Skips the other panes for this repo, as if you always pressed ⌘↵.")
+        }
+        if settings.noLayout != true {
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Use a different layout for this repo", isOn: Binding(get: { settings.layout != nil },
+                                                                             set: { settings.layout = $0 ? globalLayout : nil }))
+                Hint("Off: this repo uses the layout from Settings → Layout.")
+            }
+            if settings.layout != nil {
+                LayoutEditor(layout: Binding(get: { settings.layout ?? globalLayout }, set: { settings.layout = $0 }))
+            }
         }
     }
 }

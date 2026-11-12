@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"wk/internal/config"
 
 	"wk/internal/cmux"
 )
@@ -104,4 +105,56 @@ func joinCommands(commands ...string) string {
 	return strings.Join(parts, " && ")
 }
 
-func cmuxLayout(serverCmd, claudeCmd string) string { return cmux.Layout(serverCmd, claudeCmd) }
+// layoutFor is the repo's own layout, else the global one, else the default.
+func (service *Service) layoutFor(settings config.Repo) config.Layout {
+	switch {
+	case settings.Layout != nil:
+		return settings.Layout.Normalized()
+	case service.Config.Layout != nil:
+		return service.Config.Layout.Normalized()
+	}
+	return config.DefaultLayout()
+}
+
+var paneNames = map[string]string{"claude": "Claude", "server": "Server", "setup": "Setup", "shell": "Terminal"}
+
+// paneSpecs turns a layout into named commands. A new worktree's setup command runs in the
+// setup pane when there is one, else ahead of the server, else in the first plain pane, else
+// ahead of Claude, so it always runs exactly once.
+func paneSpecs(layout config.Layout, claudeCmd, setupCmd, serverCmd string) []cmux.PaneSpec {
+	specs := make([]cmux.PaneSpec, len(layout.Panes))
+	for index, pane := range layout.Panes {
+		spec := cmux.PaneSpec{Name: pane.Name}
+		switch pane.Kind {
+		case "claude":
+			spec.Command = claudeCmd
+		case "server":
+			spec.Command = serverCmd
+		case "command":
+			spec.Command = pane.Command
+			if spec.Name == "" {
+				spec.Name, _, _ = strings.Cut(strings.TrimSpace(pane.Command), " ")
+			}
+		}
+		if spec.Name == "" {
+			spec.Name = paneNames[pane.Kind]
+		}
+		if spec.Name == "" {
+			spec.Name = "Terminal"
+		}
+		specs[index] = spec
+	}
+	if setupCmd == "" {
+		return specs
+	}
+	for _, kind := range []string{"setup", "server", "shell", "command", "claude"} {
+		for index, pane := range layout.Panes {
+			if pane.Kind == kind {
+				specs[index].Command = joinCommands(setupCmd, specs[index].Command)
+				return specs
+			}
+		}
+	}
+	specs[0].Command = joinCommands(setupCmd, specs[0].Command)
+	return specs
+}

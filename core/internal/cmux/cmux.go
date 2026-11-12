@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"strings"
@@ -235,20 +236,53 @@ func terminal(name, command string) layoutNode {
 	return layoutNode{Pane: &layoutPane{Surfaces: []layoutSurface{{Type: "terminal", Name: name, Command: command}}}}
 }
 
-// Layout builds the 3-pane layout: claude on the left; server above git on the right.
-// Panes inherit the workspace cwd.
+// Layout builds the default 3-pane layout: claude on the left; server above git on the right.
 func Layout(serverCmd, claudeCmd string) string {
-	root := layoutNode{
-		Direction: "horizontal",
-		Split:     0.6,
-		Children: []layoutNode{
-			terminal("Claude", claudeCmd),
-			{
-				Direction: "vertical",
-				Split:     0.5,
-				Children:  []layoutNode{terminal("Server", serverCmd), terminal("Git", "")},
-			},
-		},
+	return BuildLayout("main-left", 60, []PaneSpec{{"Claude", claudeCmd}, {"Server", serverCmd}, {"Git", ""}})
+}
+
+// PaneSpec is one terminal of a layout. Panes inherit the workspace cwd.
+type PaneSpec struct{ Name, Command string }
+
+// stack splits nodes evenly along direction, as nested two-way splits (cmux's layout is a binary tree).
+func stack(direction string, nodes []layoutNode) layoutNode {
+	if len(nodes) == 1 {
+		return nodes[0]
+	}
+	share := math.Round(1000/float64(len(nodes))) / 1000
+	return layoutNode{Direction: direction, Split: share, Children: []layoutNode{nodes[0], stack(direction, nodes[1:])}}
+}
+
+// BuildLayout arranges panes: main-left | main-right | main-top put the first pane at mainSize
+// percent with the rest sharing the remainder; columns, rows and grid split evenly; tabs puts
+// every pane in one tab group. It needs at least two panes.
+func BuildLayout(arrange string, mainSize int, panes []PaneSpec) string {
+	nodes := make([]layoutNode, len(panes))
+	for index, pane := range panes {
+		nodes[index] = terminal(pane.Name, pane.Command)
+	}
+	main := float64(mainSize) / 100
+	var root layoutNode
+	switch arrange {
+	case "tabs":
+		group := &layoutPane{}
+		for _, pane := range panes {
+			group.Surfaces = append(group.Surfaces, layoutSurface{Type: "terminal", Name: pane.Name, Command: pane.Command})
+		}
+		root = layoutNode{Pane: group}
+	case "columns":
+		root = stack("horizontal", nodes)
+	case "rows":
+		root = stack("vertical", nodes)
+	case "grid":
+		half := (len(nodes) + 1) / 2
+		root = layoutNode{Direction: "horizontal", Split: 0.5, Children: []layoutNode{stack("vertical", nodes[:half]), stack("vertical", nodes[half:])}}
+	case "main-right":
+		root = layoutNode{Direction: "horizontal", Split: math.Round((1-main)*100) / 100, Children: []layoutNode{stack("vertical", nodes[1:]), nodes[0]}}
+	case "main-top":
+		root = layoutNode{Direction: "vertical", Split: main, Children: []layoutNode{nodes[0], stack("horizontal", nodes[1:])}}
+	default:
+		root = layoutNode{Direction: "horizontal", Split: main, Children: []layoutNode{nodes[0], stack("vertical", nodes[1:])}}
 	}
 	data, _ := json.Marshal(root)
 	return string(data)

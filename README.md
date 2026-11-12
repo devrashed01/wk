@@ -69,11 +69,26 @@ hotkey = "option+space"
 auto_start_claude = false        # false: only type `claude` / `claude --resume` in cmux, Enter runs it (resuming costs tokens)
 label_strip_prefixes = ["acme-"] # shorten repo labels: "acme-web" -> "web"
 
+[layout]                         # panes of a new cmux workspace (default: Claude | server / git)
+arrange = "main-left"            # main-left, main-right, main-top, columns, rows, grid, tabs
+main_size = 60                   # percent for the first pane in main-* arrangements
+[[layout.panes]]
+kind = "claude"                  # claude, server, setup, shell, or command
+[[layout.panes]]
+kind = "server"
+[[layout.panes]]
+kind = "command"                 # runs `command`; `name` sets the tab title
+name = "Git"
+command = "lazygit"
+
 [repo."~/code/acme-web"]
 server_cmd = "yarn dev"          # runs in the server pane
 base_branch = "develop"
 post_worktree = ["yarn install"] # runs in a new worktree (default: detected from the lockfile)
+# [repo."~/code/acme-web".layout] gives this repo its own layout, same shape as [layout]
 ```
+
+Up to six panes. A `setup` pane runs a new worktree's install steps; without one they run ahead of the server. The app edits all of this under Settings → Layout, with a preview.
 
 wk keeps its own data (pins, notes, session names, trashed sessions) in `~/.local/state/wk`. It never edits Claude's files; it only moves them into its trash when you ask.
 

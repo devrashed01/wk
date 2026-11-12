@@ -131,3 +131,22 @@ final class UpdatesTests: XCTestCase {
         XCTAssertFalse(Updates.isNewer("0.2.4", than: "0.2.5"))
     }
 }
+
+final class LayoutTests: XCTestCase {
+    func testFramesMirrorTheCoreArrangements() {
+        let panes = [PaneConfig(kind: "claude"), PaneConfig(kind: "server"), PaneConfig(kind: "shell", name: "Git")]
+        let standard = LayoutConfig(arrange: "main-left", mainSize: 60, panes: panes).frames()
+        XCTAssertEqual(standard[0], CGRect(x: 0, y: 0, width: 0.6, height: 1))
+        XCTAssertEqual(standard[1].minX, 0.6, accuracy: 0.001)
+        XCTAssertEqual(standard[2].minY, 0.5, accuracy: 0.001)
+        XCTAssertEqual(LayoutConfig(arrange: "columns", panes: panes).frames().map(\.width), [1.0 / 3, 1.0 / 3, 1.0 / 3])
+        XCTAssertEqual(LayoutConfig(arrange: "grid", panes: panes).frames().filter { $0.minX == 0 }.count, 2)
+    }
+
+    func testLayoutRoundTripsThroughSnakeCase() throws {
+        let layout = LayoutConfig(arrange: "tabs", mainSize: 55, panes: [PaneConfig(kind: "command", name: "Git", command: "lazygit")])
+        let data = try JSON.encoder.encode(layout)
+        XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("\"main_size\":55"))
+        XCTAssertEqual(try JSON.decoder.decode(LayoutConfig.self, from: data), layout)
+    }
+}

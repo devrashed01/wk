@@ -51,3 +51,30 @@ func TestAccessDeniedIsReported(t *testing.T) {
 		t.Fatalf("want ErrAccessDenied, got %v", err)
 	}
 }
+
+func TestBuildLayoutArrangements(t *testing.T) {
+	panes := []PaneSpec{{"A", "a"}, {"B", ""}, {"C", ""}, {"D", ""}}
+	pane := func(name, command string) string {
+		if command == "" {
+			return `{"pane":{"surfaces":[{"type":"terminal","name":"` + name + `"}]}}`
+		}
+		return `{"pane":{"surfaces":[{"type":"terminal","name":"` + name + `","command":"` + command + `"}]}}`
+	}
+	cases := map[string]string{
+		"tabs": `{"pane":{"surfaces":[{"type":"terminal","name":"A","command":"a"},{"type":"terminal","name":"B"},{"type":"terminal","name":"C"},{"type":"terminal","name":"D"}]}}`,
+		"grid": `{"direction":"horizontal","split":0.5,"children":[` +
+			`{"direction":"vertical","split":0.5,"children":[` + pane("A", "a") + `,` + pane("B", "") + `]},` +
+			`{"direction":"vertical","split":0.5,"children":[` + pane("C", "") + `,` + pane("D", "") + `]}]}`,
+		"columns": `{"direction":"horizontal","split":0.25,"children":[` + pane("A", "a") + `,` +
+			`{"direction":"horizontal","split":0.333,"children":[` + pane("B", "") + `,` +
+			`{"direction":"horizontal","split":0.5,"children":[` + pane("C", "") + `,` + pane("D", "") + `]}]}]}`,
+		"main-right": `{"direction":"horizontal","split":0.3,"children":[` +
+			`{"direction":"vertical","split":0.333,"children":[` + pane("B", "") + `,` +
+			`{"direction":"vertical","split":0.5,"children":[` + pane("C", "") + `,` + pane("D", "") + `]}]},` + pane("A", "a") + `]}`,
+	}
+	for arrange, want := range cases {
+		if got := BuildLayout(arrange, 70, panes); got != want {
+			t.Errorf("%s\n got  %s\n want %s", arrange, got, want)
+		}
+	}
+}

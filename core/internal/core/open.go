@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"wk/internal/config"
 
 	"wk/internal/cmux"
 	"wk/internal/gitops"
@@ -173,12 +174,16 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 		return OpenResult{Action: action, Workspace: existing.ID, Cwd: cwd, Message: message}, nil
 	}
 	settings := service.repoSettings(target.repo)
-	serverCmd := joinCommands(target.setupCmd, settings.ServerCmd)
-	layout := ""
-	if !settings.NoLayout && !target.single {
-		layout = cmuxLayout(serverCmd, claudeCmd)
+	panes := service.layoutFor(settings)
+	if settings.NoLayout || target.single {
+		panes = config.Layout{Panes: []config.Pane{{Kind: "claude"}}}
 	}
-	ref, err := service.Cmux.CreateWorkspace(target.name, cwd, joinCommands(target.setupCmd, claudeCmd), layout)
+	specs := paneSpecs(panes, claudeCmd, target.setupCmd, settings.ServerCmd)
+	layout := ""
+	if len(specs) > 1 {
+		layout = cmux.BuildLayout(panes.Arrange, panes.MainSize, specs)
+	}
+	ref, err := service.Cmux.CreateWorkspace(target.name, cwd, specs[0].Command, layout)
 	if err != nil {
 		return OpenResult{}, err
 	}

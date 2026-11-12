@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // Mirrors of the JSON produced by the Go core (`wk serve`). Keys are snake_case.
@@ -255,16 +256,100 @@ public struct CleanupItem: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+/// One terminal of a new cmux workspace. Kinds: claude, server, setup, shell, command.
+public struct PaneConfig: Codable, Hashable, Sendable {
+    public var kind: String
+    public var name: String?
+    public var command: String?
+    public init(kind: String, name: String? = nil, command: String? = nil) {
+        self.kind = kind
+        self.name = name
+        self.command = command
+    }
+
+    public static let kinds: [(id: String, label: String, about: String)] = [
+        ("claude", "Claude", "Runs Claude, fresh or resuming the task's session."),
+        ("server", "Server", "Runs the repo's server command (Settings → Repos)."),
+        ("setup", "Setup", "Runs a new worktree's install steps, then stays open as a terminal."),
+        ("shell", "Terminal", "An empty terminal in the task's folder."),
+        ("command", "Command", "Runs the command you type here."),
+    ]
+
+    /// The tab title cmux shows, mirroring the core's defaults.
+    public var title: String {
+        if let name, !name.isEmpty { return name }
+        if kind == "command", let first = command?.split(separator: " ").first { return String(first) }
+        return Self.kinds.first { $0.id == kind }?.label ?? "Terminal"
+    }
+}
+
+/// The panes of a new cmux workspace and how they are arranged.
+public struct LayoutConfig: Codable, Hashable, Sendable {
+    public var arrange: String
+    public var mainSize: Int?
+    public var panes: [PaneConfig]
+    public init(arrange: String, mainSize: Int? = nil, panes: [PaneConfig]) {
+        self.arrange = arrange
+        self.mainSize = mainSize
+        self.panes = panes
+    }
+
+    public static let maxPanes = 6
+    public static let standard = LayoutConfig(arrange: "main-left", mainSize: 60,
+                                              panes: [PaneConfig(kind: "claude"), PaneConfig(kind: "server"), PaneConfig(kind: "shell", name: "Git")])
+
+    public static let arrangements: [(id: String, label: String)] = [
+        ("main-left", "Main left"), ("main-right", "Main right"), ("main-top", "Main top"),
+        ("columns", "Columns"), ("rows", "Rows"), ("grid", "Grid"), ("tabs", "Tabs"),
+    ]
+
+    public var usesMainSize: Bool { arrange.hasPrefix("main-") && panes.count > 1 }
+
+    /// Where each pane sits in a unit square, in pane order. Mirrors the core's BuildLayout.
+    public func frames() -> [CGRect] {
+        let count = panes.count
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        guard count > 1, arrange != "tabs" else { return Array(repeating: unit, count: max(count, 1)) }
+        let main = CGFloat(min(max(mainSize ?? 60, 20), 80)) / 100
+        func stack(_ rect: CGRect, _ n: Int, vertical: Bool) -> [CGRect] {
+            let parts = CGFloat(n)
+            return (0..<n).map { index -> CGRect in
+                let step = CGFloat(index) / parts
+                if vertical {
+                    return CGRect(x: rect.minX, y: rect.minY + rect.height * step, width: rect.width, height: rect.height / parts)
+                }
+                return CGRect(x: rect.minX + rect.width * step, y: rect.minY, width: rect.width / parts, height: rect.height)
+            }
+        }
+        switch arrange {
+        case "columns": return stack(unit, count, vertical: false)
+        case "rows": return stack(unit, count, vertical: true)
+        case "grid":
+            let half = (count + 1) / 2
+            return stack(CGRect(x: 0, y: 0, width: 0.5, height: 1), half, vertical: true)
+                + stack(CGRect(x: 0.5, y: 0, width: 0.5, height: 1), count - half, vertical: true)
+        case "main-right":
+            return [CGRect(x: 1 - main, y: 0, width: main, height: 1)] + stack(CGRect(x: 0, y: 0, width: 1 - main, height: 1), count - 1, vertical: true)
+        case "main-top":
+            return [CGRect(x: 0, y: 0, width: 1, height: main)] + stack(CGRect(x: 0, y: main, width: 1, height: 1 - main), count - 1, vertical: false)
+        default:
+            return [CGRect(x: 0, y: 0, width: main, height: 1)] + stack(CGRect(x: main, y: 0, width: 1 - main, height: 1), count - 1, vertical: true)
+        }
+    }
+}
+
 public struct RepoSettings: Codable, Hashable, Sendable {
     public var serverCmd: String?
     public var baseBranch: String?
     public var postWorktree: [String]?
     public var noLayout: Bool?
-    public init(serverCmd: String? = nil, baseBranch: String? = nil, postWorktree: [String]? = nil, noLayout: Bool? = nil) {
+    public var layout: LayoutConfig?
+    public init(serverCmd: String? = nil, baseBranch: String? = nil, postWorktree: [String]? = nil, noLayout: Bool? = nil, layout: LayoutConfig? = nil) {
         self.serverCmd = serverCmd
         self.baseBranch = baseBranch
         self.postWorktree = postWorktree
         self.noLayout = noLayout
+        self.layout = layout
     }
 }
 
@@ -278,6 +363,7 @@ public struct WkConfig: Codable, Hashable, Sendable {
     public var hotkey: String?
     public var autoStartClaude: Bool?
     public var labelStripPrefixes: [String]?
+    public var layout: LayoutConfig?
     public var repos: [String: RepoSettings]?
 }
 

@@ -377,3 +377,34 @@ func TestFindTaskByTicketNumber(t *testing.T) {
 		t.Error("expected ambiguity error")
 	}
 }
+
+func TestPaneSpecsPlaceSetupOnce(t *testing.T) {
+	layout := config.Layout{Panes: []config.Pane{{Kind: "claude"}, {Kind: "command", Command: "lazygit"}, {Kind: "shell", Name: "Scratch"}}}
+	specs := paneSpecs(layout, "claude", "yarn install", "yarn dev")
+	if specs[0].Command != "claude" || specs[1].Name != "lazygit" || specs[1].Command != "lazygit" || specs[2].Command != "yarn install" {
+		t.Errorf("no server pane: setup should run in the first shell: %+v", specs)
+	}
+	layout.Panes = append(layout.Panes, config.Pane{Kind: "server"}, config.Pane{Kind: "setup"})
+	specs = paneSpecs(layout, "claude", "yarn install", "yarn dev")
+	if specs[3].Command != "yarn dev" || specs[4].Command != "yarn install" || specs[4].Name != "Setup" || specs[2].Command != "" {
+		t.Errorf("setup pane should take the install: %+v", specs)
+	}
+	only := paneSpecs(config.Layout{Panes: []config.Pane{{Kind: "claude"}}}, "claude", "yarn install", "")
+	if only[0].Command != "yarn install && claude" {
+		t.Errorf("single pane: %+v", only)
+	}
+}
+
+func TestOpenUsesConfiguredLayout(t *testing.T) {
+	fx := newFixture(t)
+	fx.service.Config.Layout = &config.Layout{Arrange: "tabs", Panes: []config.Pane{{Kind: "claude"}, {Kind: "shell"}}}
+	fx.service.Config.AutoStartClaude = true
+	snapshot := fx.snapshot(t)
+	if _, err := fx.service.Open(OpenRequest{Task: findTask(t, snapshot, "production").ID, Mode: OpenNew}, NopProgress{}); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"pane":{"surfaces":[{"type":"terminal","name":"Claude","command":"claude"},{"type":"terminal","name":"Terminal"}]}}`
+	if !strings.Contains(fx.cmux.created[0], want) {
+		t.Errorf("layout = %s", fx.cmux.created[0])
+	}
+}
