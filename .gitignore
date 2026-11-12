@@ -6,3 +6,6 @@ xcuserdata/
 DerivedData/
 .DS_Store
 /dist/
+
+# promo video working files (the finished video is docs/wk-promo.mp4)
+video/
