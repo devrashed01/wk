@@ -72,6 +72,13 @@
   td:first-child { width: 160px; white-space: nowrap; }
   td:last-child { color: var(--dim); }
 
+  .shot { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); background: #000; }
+  .hero-shot { margin-top: 44px; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  figure { margin: 0; }
+  figcaption { color: var(--dim); font-size: 14px; margin-top: 8px; }
+  figcaption b { color: var(--fg); font-weight: 600; }
+
   footer { padding: 56px 0 40px; color: var(--faint); font-size: 14px; text-align: center; }
   footer a { color: var(--dim); }
 </style>
@@ -97,8 +104,9 @@
 
     <div class="install">
       <div class="cmd"><span>$</span><code id="curl">curl -fsSL https://raw.githubusercontent.com/devrashed01/wk/main/install.sh | sh</code><button onclick="navigator.clipboard.writeText(document.getElementById('curl').textContent).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button></div>
-      <p class="alt">or grab the <a href="https://github.com/devrashed01/wk/releases/latest">DMG</a> · macOS 14+, Apple&nbsp;silicon &amp; Intel · free, MIT</p>
+      <p class="alt">or <code>brew install --cask devrashed01/wk/wk</code> · or the <a href="https://github.com/devrashed01/wk/releases/latest">DMG</a> · macOS 14+, Apple&nbsp;silicon &amp; Intel · free, MIT</p>
     </div>
+    <img class="shot hero-shot" src="img/tasks.png" width="2000" height="1250" alt="The wk task switcher: a search bar, a list of tasks across three repos with worktree and status icons, and the selected task's folder, Claude sessions, uncommitted files and commits.">
   </header>
 
   <section>
@@ -107,7 +115,7 @@
       <div class="card"><h3>One keystroke, any task <span class="dot">●</span></h3>
         <p>A full-screen switcher over whatever you're doing — even over full-screen apps, without switching Spaces. Search by ticket, branch, repo or session title.</p></div>
       <div class="card"><h3>Worktree-first</h3>
-        <p>Every task gets its own folder. New branches become sibling worktrees with <code>.env</code> files copied and dependencies installed, so nothing disturbs what's already running.</p></div>
+        <p>Every task gets its own folder. New branches become sibling worktrees with <code>.env</code> files copied and dependencies installed, so nothing disturbs what's already running. Worktrees are marked in the list, and <kbd>⌘T</kbd> shows only them.</p></div>
       <div class="card"><h3>Claude sessions, found again</h3>
         <p>Every Claude Code session is indexed and searchable. Opening a task types <code>claude --resume</code> at the prompt — resuming costs tokens, so it waits for your Enter.</p></div>
       <div class="card"><h3>cmux layouts</h3>
@@ -120,6 +128,16 @@
   </section>
 
   <section>
+    <h2>More of it</h2>
+    <div class="shots">
+      <figure><img class="shot" loading="lazy" src="img/sessions.png" width="2000" height="1250" alt="The Sessions tab: every Claude session with its repo, branch, age, transcript size and estimated tokens to resume.">
+        <figcaption><b>Sessions.</b> Every Claude session, with what resuming it would cost.</figcaption></figure>
+      <figure><img class="shot" loading="lazy" src="img/cleanup.png" width="2000" height="1250" alt="The Cleanup tab: merged branches, branches deleted on the remote and orphaned sessions, each marked safe or with a warning.">
+        <figcaption><b>Cleanup.</b> What can go, grouped and marked safe or risky.</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
     <h2>Keyboard</h2>
     <table>
       <tr><td><kbd>⌥Space</kbd></td><td>open wk from anywhere (click the menu-bar icon works too)</td></tr>
@@ -128,6 +146,7 @@
       <tr><td><kbd>⌘K</kbd></td><td>every action for the selected task or session</td></tr>
       <tr><td><kbd>⌘N</kbd></td><td>new task — branch or worktree, set up and opened</td></tr>
       <tr><td><kbd>⌘R</kbd></td><td>resume a specific session of the task</td></tr>
+      <tr><td><kbd>⌘T</kbd></td><td>filter the tab — worktrees only on Tasks, include trash on Sessions</td></tr>
       <tr><td><kbd>⌘1–4</kbd> <kbd>⌘←→</kbd></td><td>switch between Tasks, Sessions, Cleanup and Settings</td></tr>
       <tr><td><kbd>esc</kbd></td><td>back, then close — focus returns to where you were</td></tr>
     </table>

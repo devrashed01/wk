@@ -70,6 +70,7 @@ struct PaletteLayout: View {
             .opacity(store.overlay == nil ? 1 : 0)
             .allowsHitTesting(store.overlay == nil)
             if store.overlay == nil { closeHint }
+            if store.overlay == nil, let version = store.updateVersion { updateChip(version) }
 
             if let overlay = store.overlay {
                 OverlayHost(overlay: overlay)
@@ -154,6 +155,28 @@ struct PaletteLayout: View {
         .padding(.top, 18).padding(.trailing, 24)
     }
 
+    private func updateChip(_ version: String) -> some View {
+        VStack {
+            HStack {
+                Button { store.showUpdate() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Update available · \(version)")
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .foregroundStyle(.orange)
+                    .background(Color.orange.opacity(0.14), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("You have \(store.currentVersion). Click to copy the install command and open the release notes.")
+                Spacer()
+            }
+            Spacer()
+        }
+        .padding(.top, 16).padding(.leading, 24)
+    }
+
     private var placeholder: String {
         switch store.tab {
         case .tasks: "Search tasks — ticket, branch, repo, session title…"
@@ -189,11 +212,13 @@ struct PaletteLayout: View {
                 KeyHint(keys: "⌘R", label: "Pick session")
                 KeyHint(keys: "⌘⌫", label: "Remove")
                 KeyHint(keys: "⌘P", label: "Pin")
+                KeyHint(keys: "⌘T", label: store.worktreesOnly ? "All tasks" : "Worktrees only")
             case .sessions:
                 KeyHint(keys: "↵", label: "Resume")
                 KeyHint(keys: "⌘↵", label: "Single pane")
                 KeyHint(keys: "⌘K", label: "All actions")
-                KeyHint(keys: "⌘⌫", label: "Trash")
+                KeyHint(keys: "⌘⌫", label: store.selectedSession?.trashed == true ? "Restore" : "Trash")
+                KeyHint(keys: "⌘T", label: store.includeTrash ? "Hide trash" : "Include trash")
             case .cleanup:
                 KeyHint(keys: "↑↓", label: "Move")
                 KeyHint(keys: "↵", label: "Select")
@@ -227,6 +252,7 @@ struct PaletteLayout: View {
             Button("") { removeSelected() }.keyboardShortcut(.delete, modifiers: .command)
             Button("") { pickSession() }.keyboardShortcut("r", modifiers: .command)
             Button("") { togglePin() }.keyboardShortcut("p", modifiers: .command)
+            Button("") { store.toggleTabFilter() }.keyboardShortcut("t", modifiers: .command)
             Button("") { store.refresh(.all) }.keyboardShortcut("r", modifiers: [.command, .shift])
         }
         .opacity(0)

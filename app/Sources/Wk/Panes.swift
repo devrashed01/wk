@@ -316,10 +316,17 @@ struct SessionDetailView: View {
                         }
                     }
                     HStack(spacing: 8) {
-                        Button { store.resume(session, recreate: !session.cwdExists) } label: {
-                            Label(session.cwdExists ? "Resume" : "Recreate folder & resume", systemImage: "return")
+                        if session.trashed == true {
+                            Button { store.trash(session) } label: {
+                                Label("Restore from trash  ⌘⌫", systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        } else {
+                            Button { store.resume(session, recreate: !session.cwdExists) } label: {
+                                Label(session.cwdExists ? "Resume" : "Recreate folder & resume", systemImage: "return")
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
                         Button("All actions  ⌘K") { store.overlay = .sessionActions(sessionID: session.id) }
                             .buttonStyle(.bordered)
                     }

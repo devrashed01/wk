@@ -4,15 +4,19 @@ A macOS menu-bar app and CLI for keeping track of your repos, feature branches, 
 
 **Website:** [devrashed01.github.io/wk](https://devrashed01.github.io/wk/)
 
+![The wk task switcher](docs/img/tasks.png)
+
 You stop hunting for branch names and lost Claude sessions. Press a hotkey, type a ticket or a word, hit ↵, and you're back in that task with its server, Claude and git panes (⌘↵ for a single Claude pane).
 
 - **⌥Space** opens the search window from anywhere. Type a ticket (`ABC-123` or `123`), a branch, a repo or a session title, then press **↵** to jump there. Wk focuses the running Claude, selects its cmux workspace, or opens a new *server | claude | git* workspace and resumes the latest session.
 - **⌘K** lists every action for the selected row, so there's nothing to memorize.
-- Other shortcuts: **⌘N** new task, **⌘⌫** remove, **⌘R** pick a session, **⌘P** pin, **⌘1–4** tabs (Tasks, Sessions, Cleanup, Settings).
+- Other shortcuts: **⌘N** new task, **⌘⌫** remove, **⌘R** pick a session, **⌘P** pin, **⌘T** filter (worktrees only on Tasks, include trash on Sessions), **⌘1–4** or **⌘←→** tabs (Tasks, Sessions, Cleanup, Settings).
+- Tasks in their own worktree carry a branch icon. A task marked **not checked out** has a branch but no folder; opening it asks whether to make a worktree or switch the main folder.
 - **New task**: start from the base branch, a local or remote branch, or another worktree. It can be created in place or as a sibling worktree (`<repo>-<slug>`). For worktrees, `.env*` files are copied and dependencies installed automatically.
-- **Remove**: removes a worktree, branch, remote branch, cmux workspace or sessions, with safety checks. Before anything with uncommitted or unpushed work is removed, you must type the branch name. Sessions go to a trash you can restore from.
+- **Remove**: removes a worktree, branch, remote branch, cmux workspace or sessions, with safety checks. Before anything with uncommitted or unpushed work is removed, you must type the branch name. Sessions go to a trash you can restore from (Sessions tab → Include trash → **⌘⌫**, or `wk restore <id>`).
 - **Cleanup** finds merged branches, branches whose upstream is gone, missing worktrees, stale branches and orphaned sessions.
 - The menu-bar icon shows how many Claude sessions are waiting for you, and a notification fires when one finishes.
+- When a newer release exists, an **Update available** chip appears at the top left. Nothing installs by itself; you can turn the daily check off in Settings.
 - Every action is also available in the terminal. Run `wk help` for the list; add `--json` to any command for machine-readable output.
 
 It's light: about 40 MB RAM at idle and no polling, since it uses FSEvents.
@@ -32,6 +36,12 @@ curl -fsSL https://raw.githubusercontent.com/devrashed01/wk/main/install.sh | sh
 ```
 
 This installs the latest `Wk.app` into `/Applications` (or `~/Applications`), puts `wk` on your PATH, and starts it. Run it again any time to update. The script checks the download against the release checksums. You can set `WK_VERSION=x.y.z` to pin a version.
+
+**Homebrew:**
+
+```sh
+brew install --cask devrashed01/wk/wk
+```
 
 **DMG:** download `Wk-<version>.dmg` from [Releases](https://github.com/devrashed01/wk/releases), open it, and drag **Wk** onto **Applications**. The app is signed with the author's personal certificate but is not notarized, so the first time you open it, macOS blocks it. Right-click Wk → **Open**, or go to **System Settings → Privacy & Security → Open Anyway**. (The curl install skips this step.) To also get the CLI:
 
@@ -71,6 +81,8 @@ make run       # install and (re)start the app
 make test      # Go + Swift tests
 make release VERSION=x.y.z   # universal, signed build + zips in dist/
 ```
+
+`scripts/demo.sh` starts Wk on a throwaway world of fake repos, worktrees and Claude sessions in `~/wk-demo`, without reading your own config or sessions. It's what the screenshots are made from. `scripts/demo.sh --clean` removes it.
 
 Signing uses a *Developer ID Application* certificate when one is in your keychain. Without one, it falls back to *Apple Development*, and then to ad-hoc signing. Set `SIGN_IDENTITY="..."` to choose the certificate. If you have a Developer ID, set `NOTARY_PROFILE=<profile>` (from `xcrun notarytool store-credentials`) to notarize and staple the release.
 

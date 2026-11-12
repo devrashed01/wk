@@ -83,6 +83,15 @@ final class AppStore {
         didSet { UserDefaults.standard.set(blurBackdrop, forKey: "blurBackdrop") }
     }
 
+    /// Set when GitHub has a newer release than this build.
+    var updateVersion: String?
+    var checkForUpdates: Bool {
+        didSet {
+            UserDefaults.standard.set(checkForUpdates, forKey: "checkForUpdates")
+            if checkForUpdates { checkUpdate() } else { updateVersion = nil }
+        }
+    }
+
     @ObservationIgnored private let client: CoreClient?
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var watchedRepos: [String] = []
@@ -97,6 +106,7 @@ final class AppStore {
         notifyWhenWaiting = UserDefaults.standard.object(forKey: "notifyWhenWaiting") as? Bool ?? false
         backdropOpacity = UserDefaults.standard.object(forKey: "backdropOpacity") as? Double ?? 0.35
         blurBackdrop = UserDefaults.standard.object(forKey: "blurBackdrop") as? Bool ?? true
+        checkForUpdates = UserDefaults.standard.object(forKey: "checkForUpdates") as? Bool ?? true
         if let executable = CoreClient.locateExecutable() {
             client = CoreClient(executable: executable)
         } else {
@@ -139,6 +149,43 @@ final class AppStore {
     func start() {
         refresh(.all)
         loadConfig()
+        Task {
+            while true {
+                checkUpdate()
+                try? await Task.sleep(for: .seconds(24 * 3600))
+            }
+        }
+    }
+
+    var currentVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
+
+    func checkUpdate() {
+        guard checkForUpdates else { return }
+        Task {
+            guard let latest = await Updates.latestVersion() else { return }
+            updateVersion = Updates.isNewer(latest, than: currentVersion) ? latest : nil
+        }
+    }
+
+    /// Copies the one-line installer and opens the release notes; running it replaces this app.
+    func showUpdate() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(Updates.installCommand, forType: .string)
+        NSWorkspace.shared.open(Updates.releasesPage)
+        showToast("✓ Install command copied — paste it in a terminal to update", seconds: 6)
+        PaletteController.shared.hide()
+    }
+
+    func toggleTabFilter() {
+        switch tab {
+        case .tasks:
+            worktreesOnly.toggle()
+            selectionChanged()
+        case .sessions:
+            includeTrash.toggle()
+            searchSessions()
+        default: break
+        }
     }
 
     /// Coalesces change bursts: one request in flight, pending scopes merged; cmux at most every 2s.

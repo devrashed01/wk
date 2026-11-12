@@ -65,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    @objc private func showUpdate() { store.showUpdate() }
+
     private func showStatusMenu() {
         guard let item = statusItem else { return }
         let menu = NSMenu()
@@ -74,6 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+        if let version = store.updateVersion {
+            let update = NSMenuItem(title: "Update to \(version)…", action: #selector(showUpdate), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
+        }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Wk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu

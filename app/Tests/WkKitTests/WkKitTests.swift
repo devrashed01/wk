@@ -122,3 +122,12 @@ final class FilterTests: XCTestCase {
         XCTAssertEqual(RelativeTime.short(.distantPast, now: now), "–")
     }
 }
+
+final class UpdatesTests: XCTestCase {
+    func testComparesDottedVersionsNumerically() {
+        XCTAssertTrue(Updates.isNewer("0.2.10", than: "0.2.9"))
+        XCTAssertTrue(Updates.isNewer("0.3", than: "0.2.9"))
+        XCTAssertFalse(Updates.isNewer("0.2.5", than: "0.2.5"))
+        XCTAssertFalse(Updates.isNewer("0.2.4", than: "0.2.5"))
+    }
+}

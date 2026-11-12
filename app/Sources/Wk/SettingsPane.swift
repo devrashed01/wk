@@ -176,6 +176,11 @@ private struct GeneralSettings: View {
                 Toggle("Notify when Claude finishes and waits for you", isOn: $store.notifyWhenWaiting)
                 Hint("Off by default because cmux can already notify you. Background actions (create, remove) always notify when wk is closed.")
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Check for updates", isOn: $store.checkForUpdates)
+                Hint(store.updateVersion.map { "Version \($0) is available — you have \(store.currentVersion). Click the orange chip at the top left to update." }
+                     ?? "You have \(store.currentVersion). Once a day wk asks GitHub for the newest release and shows a chip when there is one. Nothing is installed automatically.")
+            }
         }
     }
 }
