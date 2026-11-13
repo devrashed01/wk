@@ -17,7 +17,10 @@ final class PaletteController: NSObject, NSWindowDelegate {
 
     private var panel: PalettePanel?
     private(set) var store: AppStore?
-    var isVisible: Bool { panel?.isVisible == true }
+    /// Visible means actually on a live screen. After sleep, display changes or a long uptime the
+    /// panel can claim to be visible while it sits on a screen that's gone, which made the hotkey
+    /// "hide" an invisible window and look dead.
+    var isVisible: Bool { panel.map { $0.isVisible && $0.screen != nil && $0.windowNumber > 0 } ?? false }
 
     func attach(_ store: AppStore) {
         self.store = store
@@ -52,6 +55,11 @@ final class PaletteController: NSObject, NSWindowDelegate {
     }
 
     func show(overlay: Overlay? = nil, tab: PaletteTab? = nil) {
+        // Rebuild the panel if the window server dropped its window or its screen went away.
+        if let old = self.panel, old.windowNumber <= 0 || (old.isVisible && old.screen == nil) {
+            old.orderOut(nil)
+            self.panel = nil
+        }
         let panel = self.panel ?? makePanel()
         self.panel = panel
         if let store {
@@ -61,7 +69,7 @@ final class PaletteController: NSObject, NSWindowDelegate {
             if store.tab == .cleanup { store.loadCleanup() }
             if store.tab == .sessions { store.searchSessions() }
         }
-        if !panel.isVisible { fillScreen(panel) }
+        if !isVisible { fillScreen(panel) }
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
         // SwiftUI's onAppear only fires once; refocus the search field on every show.
