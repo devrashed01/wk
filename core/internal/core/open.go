@@ -152,7 +152,7 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 			return OpenResult{}, err
 		}
 		command := joinCommands("cd "+shellQuote(cwd), target.setupCmd, target.claudeCmd)
-		return OpenResult{Action: "printed", Cwd: cwd, Command: command, Message: "cmux is not running; run this in a terminal"}, nil
+		return OpenResult{Action: "printed", Cwd: cwd, Command: command, Message: err.Error() + "; run this in a terminal"}, nil
 	}
 	claudeCmd := target.claudeCmd
 	if !service.Config.AutoStartClaude {
@@ -195,6 +195,9 @@ func (service *Service) ensureCmux() error {
 	_, err := service.Cmux.Workspaces()
 	if err == nil || errors.Is(err, cmux.ErrAccessDenied) {
 		return err // denied: cmux is up, so waiting for it would not help
+	}
+	if !service.Cmux.Installed() {
+		return errors.New("cmux is not installed") // nothing to launch, so don't make the user wait
 	}
 	service.Cmux.Activate()
 	deadline := time.Now().Add(8 * time.Second)

@@ -495,9 +495,7 @@ final class AppStore {
 
     nonisolated static func describe(_ result: OpenResult) -> String {
         if result.action == "printed", let command = result.command {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(command, forType: .string)
-            return "cmux isn't running — command copied to clipboard"
+            return FallbackTerminal.run(command)
         }
         return result.message
     }

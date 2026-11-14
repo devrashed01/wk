@@ -165,6 +165,12 @@ func (client Client) Close(workspace string) error {
 }
 
 // Activate brings the cmux app to the front.
+// Installed reports whether the cmux CLI exists, so callers can skip waiting for an app that isn't there.
+func (client Client) Installed() bool {
+	_, err := exec.LookPath(client.Bin)
+	return err == nil
+}
+
 func (client Client) Activate() {
 	_ = exec.Command("open", "-b", "com.cmuxterm.app").Run()
 }

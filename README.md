@@ -27,6 +27,7 @@ It's light: about 40 MB RAM at idle and no polling, since it uses FSEvents.
 
 - macOS 14 or later (Apple silicon or Intel)
 - [cmux](https://cmux.dev), [Claude Code](https://claude.com/claude-code) and git
+  (cmux is recommended, not required: without it, wk opens the task in Terminal or iTerm with Claude running. You can change this under Settings → General.)
 - Optional: [fzf](https://github.com/junegunn/fzf) for the terminal picker
 
 ## Install

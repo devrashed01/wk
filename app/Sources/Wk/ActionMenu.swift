@@ -254,23 +254,47 @@ struct PromptOverlay: View {
     @State private var text = ""
     @State private var refs: RepoRefs?
     @State private var stash = false
+    @State private var selection = 0
     @FocusState private var focused: Bool
 
     var body: some View {
         OverlayCard(title: title) {
             if needsBranchList {
-                TextField("Filter branches…", text: $text).textFieldStyle(.roundedBorder).focused($focused)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 1) {
-                        ForEach(branchOptions, id: \.self) { branch in
-                            Button { submit(branch) } label: {
-                                Text(branch).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 3).contentShape(Rectangle())
+                TextField("Filter branches…", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused)
+                    .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
+                    .onKeyPress(.downArrow) { selection = min(selection + 1, branchOptions.count - 1); return .handled }
+                    .onKeyPress(.return) {
+                        let options = branchOptions
+                        if options.indices.contains(selection) { submit(options[selection]) }
+                        return .handled
+                    }
+                    .onChange(of: text) { _, _ in selection = 0 }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(Array(branchOptions.enumerated()), id: \.element) { index, branch in
+                                Text(branch)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(index == selection ? Color.accentColor.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { submit(branch) }
+                                    .id(branch)
                             }
-                            .buttonStyle(.plain)
+                            if refs != nil && branchOptions.isEmpty {
+                                Text("No match").foregroundStyle(.secondary).padding(8)
+                            }
                         }
                     }
+                    .frame(height: 260)
+                    .onChange(of: selection) { _, index in
+                        let options = branchOptions
+                        if options.indices.contains(index) { proxy.scrollTo(options[index]) }
+                    }
                 }
-                .frame(height: 260)
+                Text("↑↓ choose · ↵ pick · esc cancel").font(.system(size: 11)).foregroundStyle(.secondary)
                 if case .switchBranch = kind {
                     Toggle("Stash uncommitted changes first", isOn: $stash).toggleStyle(.checkbox)
                 }

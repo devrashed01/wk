@@ -42,6 +42,7 @@ type CmuxClient interface {
 	Select(workspace string) error
 	Close(workspace string) error
 	Activate()
+	Installed() bool
 	FocusSurface(workspace, surfaceID string) error
 	CreateWorkspace(name, cwd, command, layout string) (string, error)
 	NewSurface(workspace, command string) error

@@ -2,11 +2,13 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"wk/internal/claudeidx"
 	"wk/internal/cmux"
@@ -23,13 +25,20 @@ type fakeCmux struct {
 	selected   []string
 	closed     []string
 	surfaces   []string
+	missing    bool // cmux not installed (and so not running)
 }
 
-func (fake *fakeCmux) Workspaces() ([]cmux.Workspace, error) { return fake.workspaces, nil }
-func (fake *fakeCmux) Select(id string) error                { fake.selected = append(fake.selected, id); return nil }
-func (fake *fakeCmux) Close(id string) error                 { fake.closed = append(fake.closed, id); return nil }
-func (fake *fakeCmux) Activate()                             {}
-func (fake *fakeCmux) FocusSurface(string, string) error     { return nil }
+func (fake *fakeCmux) Workspaces() ([]cmux.Workspace, error) {
+	if fake.missing {
+		return nil, errors.New("not running")
+	}
+	return fake.workspaces, nil
+}
+func (fake *fakeCmux) Installed() bool                   { return !fake.missing }
+func (fake *fakeCmux) Select(id string) error            { fake.selected = append(fake.selected, id); return nil }
+func (fake *fakeCmux) Close(id string) error             { fake.closed = append(fake.closed, id); return nil }
+func (fake *fakeCmux) Activate()                         {}
+func (fake *fakeCmux) FocusSurface(string, string) error { return nil }
 func (fake *fakeCmux) NewSurface(workspace, command string) error {
 	fake.surfaces = append(fake.surfaces, workspace+"|"+command)
 	return nil
@@ -406,5 +415,21 @@ func TestOpenUsesConfiguredLayout(t *testing.T) {
 	want := `{"pane":{"surfaces":[{"type":"terminal","name":"Claude","command":"claude"},{"type":"terminal","name":"Terminal"}]}}`
 	if !strings.Contains(fx.cmux.created[0], want) {
 		t.Errorf("layout = %s", fx.cmux.created[0])
+	}
+}
+
+func TestOpenWithoutCmuxFallsBackImmediately(t *testing.T) {
+	fixture := newFixture(t)
+	fixture.cmux.missing = true
+	start := time.Now()
+	result, err := fixture.service.Open(OpenRequest{Task: "production"}, NopProgress{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatalf("waited %s for a cmux that isn't installed", time.Since(start))
+	}
+	if result.Action != "printed" || !strings.Contains(result.Command, "cd ") || !strings.Contains(result.Message, "not installed") {
+		t.Fatalf("unexpected result %+v", result)
 	}
 }

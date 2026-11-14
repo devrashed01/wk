@@ -19,7 +19,7 @@ func hasFzf() bool {
 	return err == nil
 }
 
-// choose shows "key\tlabel" options in fzf (or a numbered list) and returns the chosen key.
+// choose shows "key\tlabel" options in fzf, else an arrow-key picker (or a numbered list when not a terminal), and returns the chosen key.
 func choose(header string, options []string) (string, error) {
 	if len(options) == 0 {
 		return "", errors.New("nothing to choose from")
@@ -33,6 +33,18 @@ func choose(header string, options []string) (string, error) {
 			return "", errCancelled
 		}
 		key, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+		return key, nil
+	}
+	if canUseSelector() {
+		labels := make([]string, len(options))
+		for index, option := range options {
+			_, labels[index], _ = strings.Cut(option, "\t")
+		}
+		index, err := selectWithArrows(header, labels)
+		if err != nil {
+			return "", err
+		}
+		key, _, _ := strings.Cut(options[index], "\t")
 		return key, nil
 	}
 	fmt.Fprintln(os.Stderr, header)

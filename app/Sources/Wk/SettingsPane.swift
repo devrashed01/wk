@@ -160,6 +160,7 @@ private struct Hint: View {
 private struct GeneralSettings: View {
     @Environment(AppStore.self) private var store
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var fallbackTerminal = FallbackTerminal.current
     @State private var hotkey = UserDefaults.standard.string(forKey: "hotkey") ?? HotKey.choices[0].id
 
     var body: some View {
@@ -179,6 +180,15 @@ private struct GeneralSettings: View {
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Notify when Claude finishes and waits for you", isOn: $store.notifyWhenWaiting)
                 Hint("Off by default because cmux can already notify you. Background actions (create, remove) always notify when wk is closed.")
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Without cmux, open tasks in", selection: $fallbackTerminal) {
+                    ForEach(FallbackTerminal.allCases) { option in
+                        Text(option == .auto ? "Automatic (\(FallbackTerminal.auto.resolved.label))" : option.label).tag(option)
+                    }
+                }
+                .onChange(of: fallbackTerminal) { _, value in FallbackTerminal.current = value }
+                Hint("Used when cmux isn't installed or doesn't start. The task's folder opens in a new window with Claude running.")
             }
             VStack(alignment: .leading, spacing: 4) {
                 Toggle("Check for updates", isOn: $store.checkForUpdates)
