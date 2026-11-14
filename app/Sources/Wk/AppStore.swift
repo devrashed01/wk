@@ -137,6 +137,19 @@ final class AppStore {
         return sessions.first { $0.id == id } ?? sessions.first
     }
 
+    /// Pushes a branch to origin, then refreshes Cleanup so the item turns safe.
+    func pushBranch(repo: String, branch: String) {
+        struct Args: Encodable { var repo: String; var branch: String }
+        run("Pushing \(branch)", { client, _ in
+            try await client.call("push", Args(repo: repo, branch: branch), as: Message.self).message
+        }, after: { [weak self] in self?.loadCleanup() })
+    }
+
+    /// The short label wk uses for a repo everywhere (WEB, not ACME-WEB), same as the Tasks list.
+    func repoLabel(_ path: String) -> String {
+        snapshot.repos?.first { $0.path == path }?.label ?? URL(fileURLWithPath: path).lastPathComponent.uppercased()
+    }
+
     func task(_ id: String) -> WkTask? { (snapshot.tasks ?? []).first { $0.id == id } }
 
     func session(_ id: String) -> Session? {
@@ -382,10 +395,10 @@ final class AppStore {
 
     func applyCleanup(ids: [String], force: Bool) {
         struct Args: Encodable { var ids: [String]; var force: Bool }
-        run("Cleaning up \(ids.count) item(s)", notify: true) { client, progress in
+        run("Cleaning up \(ids.count) item\(ids.count == 1 ? "" : "s")", notify: true) { client, progress in
             let steps = try await client.call("cleanup_apply", Args(ids: ids, force: force), as: [StepResult]?.self, progress: progress) ?? []
             let failed = steps.filter { !$0.ok }.count
-            return failed == 0 ? "Cleaned up \(ids.count) item(s)" : "\(steps.count - failed) done, \(failed) skipped or failed"
+            return failed == 0 ? "Cleaned up \(ids.count) item\(ids.count == 1 ? "" : "s")" : "\(steps.count - failed) done, \(failed) skipped or failed"
         } after: { [weak self] in
             self?.loadCleanup()
         }

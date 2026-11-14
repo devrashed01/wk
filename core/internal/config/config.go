@@ -43,9 +43,12 @@ type Layout struct {
 const MaxPanes = 6
 
 // DefaultLayout is Claude on the left with the server above a git terminal on the right.
+// DefaultGitCommand fills the default Git pane: lazygit when it's installed, else a short status.
+const DefaultGitCommand = "lazygit 2>/dev/null || git status -sb"
+
 func DefaultLayout() Layout {
 	return Layout{Arrange: "main-left", MainSize: 60, Panes: []Pane{
-		{Kind: "claude"}, {Kind: "server"}, {Kind: "shell", Name: "Git"},
+		{Kind: "claude"}, {Kind: "server"}, {Kind: "command", Name: "Git", Command: DefaultGitCommand},
 	}}
 }
 

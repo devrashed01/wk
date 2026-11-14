@@ -11,7 +11,7 @@ struct LayoutSettings: View {
                 LayoutEditor(layout: Binding(
                     get: { draft.layout ?? .standard },
                     set: { draft.layout = $0 == .standard ? nil : $0 }))
-                Text("Applies to workspaces opened from now on; open ones keep their panes. ⌘↵ always opens a single Claude pane. A repo can have its own layout under Repos.")
+                Text("Applies to workspaces opened from now on; open ones keep their panes. ⌘↵ always opens Claude only, without the other panes. A repo can have its own layout under Repos.")
                     .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } header: {
                 VStack(alignment: .leading, spacing: 4) {

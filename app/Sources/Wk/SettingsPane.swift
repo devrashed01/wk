@@ -28,6 +28,23 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Words that find this page from the search field (titles of its settings plus synonyms).
+    var keywords: String {
+        switch self {
+        case .general: "hotkey shortcut option space open launch login startup notify notification alert cmux terminal iterm fallback update version"
+        case .appearance: "blur backdrop dim dimming dark transparency look theme"
+        case .claude: "start claude automatically auto resume tokens single pane zsh"
+        case .layout: "layout panes pane split grid columns rows tabs arrangement main size server git shell command workspace"
+        case .scanning: "scan folders roots base branch strip prefix label recent days"
+        case .repos: "repo repository server command dev base branch setup install env worktree single pane layout"
+        }
+    }
+
+    func matches(_ query: String) -> Bool {
+        let haystack = (title + " " + keywords).lowercased()
+        return query.lowercased().split(separator: " ").allSatisfy { haystack.contains($0) }
+    }
+
     var color: Color {
         switch self {
         case .general: .gray
@@ -61,15 +78,24 @@ struct SettingsPane: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // End the page above the shortcut bar, so a long page (Layout) scrolls instead of hiding its last rows.
+            .padding(.bottom, 56)
         }
         .onAppear { if draft == nil { draft = store.config } }
         .onChange(of: store.config) { _, config in if draft == nil || saveTask == nil { draft = config } }
         .onChange(of: draft) { _, value in scheduleSave(value) }
+        .onChange(of: store.query) { _, query in
+            // Typing in the search field jumps to the first page that has a matching setting.
+            guard !query.isEmpty, !category.matches(query),
+                  let first = SettingsCategory.allCases.first(where: { $0.matches(query) }) else { return }
+            category = first
+        }
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(SettingsCategory.allCases) { item in
+                let dimmed = !store.query.isEmpty && !item.matches(store.query)
                 Button { category = item } label: {
                     HStack(spacing: 10) {
                         Image(systemName: item.symbol)
@@ -83,6 +109,7 @@ struct SettingsPane: View {
                     .padding(.horizontal, 8).padding(.vertical, 6)
                     .background(category == item ? Color.accentColor.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 8))
                     .contentShape(Rectangle())
+                    .opacity(dimmed ? 0.35 : 1)
                 }
                 .buttonStyle(.plain)
             }
@@ -93,7 +120,13 @@ struct SettingsPane: View {
                     .id(savedAt)
                     .transition(.opacity)
             }
-            Text("~/.config/wk/config.toml").font(.system(size: 11)).foregroundStyle(.tertiary)
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: PathDisplay.configFile)])
+            } label: {
+                Label(PathDisplay.collapse(PathDisplay.configFile), systemImage: "doc.text").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Show the config file in Finder")
         }
         .padding(12)
         .frame(width: 200)
@@ -237,10 +270,7 @@ private struct ClaudeSettings: View {
                     set: { draft.autoStartClaude = $0 ? true : nil }))
                 Hint("Off: wk types `claude` or `claude --resume …` in the tab and you press Enter to run it. Resuming re-reads the whole conversation, so it costs tokens. Needs zsh; in other shells Claude always starts.")
             }
-            LabeledContent("Single Claude pane") {
-                Text("⌘↵ instead of ↵").foregroundStyle(.secondary)
-            }
-            Hint("↵ opens a new workspace with the panes set in Layout. ⌘↵ opens just Claude. To always use one pane for a repo, see Repos.")
+            Hint("Tip: ↵ opens the panes from Settings → Layout; ⌘↵ opens Claude only. To always open Claude only for a repo, use Settings → Repos.")
         }
     }
 }
@@ -250,12 +280,35 @@ private struct ScanningSettings: View {
 
     var body: some View {
         SettingsPage(category: .scanning, subtitle: "Where wk looks for repos and what it lists.") {
-            VStack(alignment: .leading, spacing: 4) {
-                TextField("Scan folders", text: Binding(
-                    get: { draft.roots.joined(separator: ", ") },
-                    set: { draft.roots = $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }),
-                          prompt: Text("~/code, ~/projects"))
-                Hint("Comma separated. Folders that don't exist are skipped.")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Scan folders")
+                ForEach(Array(draft.roots.enumerated()), id: \.offset) { index, root in
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder").foregroundStyle(.blue)
+                        Text(PathDisplay.collapse(PathDisplay.expand(root))).lineLimit(1).truncationMode(.middle)
+                        if !FileManager.default.fileExists(atPath: PathDisplay.expand(root)) {
+                            Chip(text: "not found", color: .orange)
+                        }
+                        Spacer()
+                        Button { draft.roots.remove(at: index) } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .help("Stop scanning this folder")
+                    }
+                    .padding(.vertical, 2)
+                }
+                if draft.roots.isEmpty {
+                    Text("No folders yet — wk has nothing to list until you add the folder your repos live in.")
+                        .font(.system(size: 12)).foregroundStyle(.orange)
+                }
+                Button {
+                    PaletteController.shared.chooseFolder { url in
+                        let path = PathDisplay.collapse(url.path)
+                        if !draft.roots.contains(path) { draft.roots.append(path) }
+                    }
+                } label: {
+                    Label("Add folder…", systemImage: "plus")
+                }
+                Hint("wk finds the git repos inside these folders, including nested ones.")
             }
             TextField("Default base branch", text: $draft.baseBranch, prompt: Text("auto-detect (origin/HEAD, main, master)"))
             VStack(alignment: .leading, spacing: 4) {
@@ -341,7 +394,7 @@ private struct RepoEditor: View {
             Hint("One command per line. Empty = automatic: .env* files are copied and the lockfile's install runs (yarn/pnpm/npm).")
         }
         VStack(alignment: .leading, spacing: 4) {
-            Toggle("Always use a single Claude pane", isOn: Binding(get: { settings.noLayout ?? false },
+            Toggle("Always open Claude only (no other panes)", isOn: Binding(get: { settings.noLayout ?? false },
                                                                      set: { settings.noLayout = $0 ? true : nil }))
             Hint("Skips the other panes for this repo, as if you always pressed ⌘↵.")
         }

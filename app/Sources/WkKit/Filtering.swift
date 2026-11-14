@@ -95,4 +95,14 @@ public enum PathDisplay {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
+
+    public static func expand(_ path: String) -> String {
+        guard path == "~" || path.hasPrefix("~/") else { return path }
+        return FileManager.default.homeDirectoryForCurrentUser.path + path.dropFirst()
+    }
+
+    /// The config file wk reads (WK_CONFIG overrides it, as in demo mode).
+    public static var configFile: String {
+        ProcessInfo.processInfo.environment["WK_CONFIG"] ?? expand("~/.config/wk/config.toml")
+    }
 }

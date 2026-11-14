@@ -278,13 +278,17 @@ func TestRemoveRequiresConfirmWhenWorkWouldBeLost(t *testing.T) {
 	if !plan.RequiresConfirm || plan.Facts.Unpushed != 1 || plan.Facts.Dirty != 1 {
 		t.Fatalf("plan facts = %+v confirm=%v", plan.Facts, plan.RequiresConfirm)
 	}
-	if _, err := fx.service.ApplyRemove(RemoveRequest{Task: "ABC-4"}, NopProgress{}); err == nil {
+	if plan.Options[OptRemoveWorktree].Default || plan.Options[OptDeleteBranch].Default {
+		t.Fatalf("steps that lose work must not be pre-ticked: %+v", plan.Options)
+	}
+	everything := map[string]bool{OptRemoveWorktree: true, OptDeleteBranch: true}
+	if _, err := fx.service.ApplyRemove(RemoveRequest{Task: "ABC-4", Options: everything}, NopProgress{}); err == nil {
 		t.Fatal("expected confirmation error")
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal("worktree removed without confirmation")
 	}
-	results, err := fx.service.ApplyRemove(RemoveRequest{Task: "ABC-4", Confirm: "ABC-4-x"}, NopProgress{})
+	results, err := fx.service.ApplyRemove(RemoveRequest{Task: "ABC-4", Options: everything, Confirm: "ABC-4-x"}, NopProgress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,5 +435,17 @@ func TestOpenWithoutCmuxFallsBackImmediately(t *testing.T) {
 	}
 	if result.Action != "printed" || !strings.Contains(result.Command, "cd ") || !strings.Contains(result.Message, "not installed") {
 		t.Fatalf("unexpected result %+v", result)
+	}
+}
+
+func TestPushBranchPublishesUnpushedWork(t *testing.T) {
+	fx := newFixture(t)
+	testutil.Git(t, fx.repo, "switch", "-q", "-c", "ABC-9-push")
+	testutil.Commit(t, fx.repo, "p.txt", "unpushed")
+	if _, err := fx.service.PushBranch(fx.repo, "ABC-9-push"); err != nil {
+		t.Fatal(err)
+	}
+	if out := testutil.Git(t, fx.repo, "ls-remote", "--heads", "origin", "ABC-9-push"); !strings.Contains(out, "ABC-9-push") {
+		t.Fatalf("branch not on origin: %q", out)
 	}
 }

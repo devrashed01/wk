@@ -168,7 +168,7 @@ struct RemoveOverlay: View {
                                 .toggleStyle(.checkbox)
                                 .disabled(!option.available)
                             if let reason = option.reason {
-                                Text(reason).font(.system(size: 12)).foregroundStyle(option.available ? .orange : .secondary).padding(.leading, 20)
+                                Text(reason).font(.system(size: 13)).foregroundStyle(option.available ? .orange : .secondary).padding(.leading, 20)
                             }
                         }
                     }
@@ -215,18 +215,17 @@ struct RemoveOverlay: View {
             GridRow { Text("Folder").foregroundStyle(.secondary); Text(plan.task.path.map(PathDisplay.collapse) ?? "not checked out") }
             GridRow {
                 Text("Uncommitted").foregroundStyle(.secondary)
-                Text("\(facts.dirty) file(s)").foregroundStyle(facts.dirty > 0 ? .orange : .primary)
+                Text(facts.dirty == 1 ? "1 file" : "\(facts.dirty) files").foregroundStyle(facts.dirty > 0 ? .orange : .primary)
             }
             GridRow {
                 Text("Unpushed").foregroundStyle(.secondary)
-                Text("\(facts.unpushed) commit(s)").foregroundStyle(facts.unpushed > 0 ? .orange : .primary)
+                Text(facts.unpushed == 1 ? "1 commit" : "\(facts.unpushed) commits").foregroundStyle(facts.unpushed > 0 ? .orange : .primary)
             }
             GridRow { Text("On origin").foregroundStyle(.secondary); Text(facts.hasRemote ? "yes" : "no") }
             GridRow { Text("Merged").foregroundStyle(.secondary); Text(facts.merged ? "yes" : "no") }
             GridRow { Text("Sessions").foregroundStyle(.secondary); Text("\(facts.sessions)" + (facts.liveSessions > 0 ? " (\(facts.liveSessions) running — kept)" : "")) }
             GridRow { Text("cmux").foregroundStyle(.secondary); Text(facts.workspace?.title ?? "not open") }
         }
-        .font(.system(size: 13))
     }
 
     private func losesWork(_ plan: RemovePlan) -> Bool {

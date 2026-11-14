@@ -43,6 +43,38 @@ struct SessionStateIcon: View {
     }
 }
 
+/// One quiet line that says what the row icons mean, so nobody has to hover to find out.
+struct StatusLegend: View {
+    enum Kind { case tasks, sessions }
+    let kind: Kind
+
+    var body: some View {
+        HStack(spacing: 14) {
+            item("play.circle.fill", Theme.running, "Claude working")
+            item("bell.circle.fill", Theme.waiting, "waiting for you")
+            switch kind {
+            case .tasks:
+                item("circle.inset.filled", Theme.open, "open in cmux")
+                item("arrow.triangle.branch", .teal, "worktree")
+                item("house", .secondary, "main folder")
+            case .sessions:
+                item("bubble.left", .secondary, "idle")
+                item("exclamationmark.triangle", .yellow, "folder gone")
+            }
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    }
+
+    private func item(_ symbol: String, _ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).foregroundStyle(color)
+            Text(label)
+        }
+    }
+}
+
 struct Chip: View {
     let text: String
     var color: Color = .secondary
@@ -95,6 +127,9 @@ struct TaskRow: View {
                     if task.isLinkedWorktree {
                         Image(systemName: "arrow.triangle.branch").font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.teal).help("Worktree — its own folder, separate from the main checkout")
+                    } else if task.mainWorktree {
+                        Image(systemName: "house").font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary).help("The repo's main folder")
                     }
                     Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 }
@@ -121,6 +156,7 @@ struct SessionRow: View {
     let session: Session
     let selected: Bool
     var showRepo = true
+    @Environment(AppStore.self) private var store
 
     var body: some View {
         HStack(spacing: 8) {
@@ -128,7 +164,7 @@ struct SessionRow: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.displayTitle).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 HStack(spacing: 6) {
-                    if showRepo, let repo = session.repo { Text(URL(fileURLWithPath: repo).lastPathComponent.uppercased()).bold() }
+                    if showRepo, let repo = session.repo { Text(store.repoLabel(repo)).bold() }
                     Text(session.branch.isEmpty ? PathDisplay.collapse(session.cwd) : session.branch)
                     if session.trashed == true { Text("in trash").foregroundStyle(.red) }
                 }
@@ -250,7 +286,10 @@ struct OverlayCard<Content: View>: View {
                         Button { store.overlay = nil } label: { KeyHint(keys: "esc", label: "Back") }
                             .buttonStyle(.plain)
                     }
+                    // One type scale with the rest of the full-screen UI, instead of 13pt form controls.
                     content
+                        .font(.system(size: 15))
+                        .controlSize(.large)
                 }
                 .frame(width: min(max(width, 640), geometry.size.width - 48))
                 .padding(.top, geometry.size.height * 0.09)

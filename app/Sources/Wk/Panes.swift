@@ -9,7 +9,10 @@ struct TasksPane: View {
     var body: some View {
         let tasks = store.visibleTasks
         VStack(alignment: .leading, spacing: 10) {
-        worktreeToggle
+        HStack(spacing: 20) {
+            worktreeToggle
+            StatusLegend(kind: .tasks)
+        }
         HStack(spacing: 0) {
             if tasks.isEmpty {
                 EmptyState(symbol: "tray", title: store.worktreesOnly ? "No worktrees" : store.query.isEmpty ? "No tasks yet" : "No matches",
@@ -139,7 +142,7 @@ struct TaskDetailView: View {
         HStack(spacing: 8) {
             Button { store.open(task) } label: { Label("Open", systemImage: "return") }
                 .buttonStyle(.borderedProminent)
-            Button("Single pane  ⌘↵") { store.open(task, single: true) }
+            Button("Claude only  ⌘↵") { store.open(task, single: true) }
                 .buttonStyle(.bordered)
             Button("All actions  ⌘K") { store.overlay = .actions(taskID: task.id) }
                 .buttonStyle(.bordered)
@@ -260,6 +263,7 @@ struct SessionsPane: View {
                     if store.sessionsLoading {
                         ProgressView().controlSize(.small).padding(.leading, 6)
                     }
+                    StatusLegend(kind: .sessions).padding(.leading, 14)
                     Spacer()
                 }
                 .padding(.horizontal, 6).padding(.top, 2).padding(.bottom, 6)
@@ -505,7 +509,7 @@ struct CleanupPane: View {
             Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 16))
                 .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.6))
-            let label = store.snapshot.repos?.first { $0.path == item.repo }?.label ?? item.repoName.uppercased()
+            let label = store.repoLabel(item.repo)
             if !item.title.hasPrefix(label + " ") {
                 Text(label)
                     .font(.system(size: 11, weight: .semibold))
@@ -582,6 +586,20 @@ struct CleanupPane: View {
                     Label("\(risky.count) selected item\(risky.count == 1 ? " has" : "s have") work that would be lost",
                           systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange).font(.system(size: 13, weight: .medium))
+                    // Offer the way to keep the work, not only the way to throw it away.
+                    ForEach(risky.filter { $0.unpushed > 0 && $0.branch != nil }) { item in
+                        HStack(spacing: 8) {
+                            Text("\(item.branch ?? ""): \(item.unpushed) commit\(item.unpushed == 1 ? "" : "s") only here")
+                                .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Button("Push to origin") { store.pushBranch(repo: item.repo, branch: item.branch ?? "") }
+                                .controlSize(.small)
+                        }
+                    }
+                    if risky.contains(where: { $0.dirty > 0 }) {
+                        Text("Uncommitted changes: open the task (Tasks tab) and commit them first, or tick below to discard.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                     Toggle("Remove them anyway (uncommitted and unpushed work is lost)", isOn: $force)
                         .toggleStyle(.checkbox).font(.system(size: 12))
                 }

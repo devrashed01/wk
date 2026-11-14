@@ -182,7 +182,7 @@ struct PaletteLayout: View {
         case .tasks: "Search tasks — ticket, branch, repo, session title…"
         case .sessions: "Search every Claude session…"
         case .cleanup: "Filter cleanup suggestions…"
-        case .settings: "Settings"
+        case .settings: "Search settings — hotkey, blur, layout, server command…"
         }
     }
 
@@ -206,7 +206,7 @@ struct PaletteLayout: View {
             switch store.tab {
             case .tasks:
                 KeyHint(keys: "↵", label: "Open")
-                KeyHint(keys: "⌘↵", label: "Single pane")
+                KeyHint(keys: "⌘↵", label: "Claude only")
                 KeyHint(keys: "⌘K", label: "All actions")
                 KeyHint(keys: "⌘N", label: "New task")
                 KeyHint(keys: "⌘R", label: "Pick session")
@@ -215,7 +215,7 @@ struct PaletteLayout: View {
                 KeyHint(keys: "⌘T", label: store.worktreesOnly ? "All tasks" : "Worktrees only")
             case .sessions:
                 KeyHint(keys: "↵", label: "Resume")
-                KeyHint(keys: "⌘↵", label: "Single pane")
+                KeyHint(keys: "⌘↵", label: "Claude only")
                 KeyHint(keys: "⌘K", label: "All actions")
                 KeyHint(keys: "⌘⌫", label: store.selectedSession?.trashed == true ? "Restore" : "Trash")
                 KeyHint(keys: "⌘T", label: store.includeTrash ? "Hide trash" : "Include trash")

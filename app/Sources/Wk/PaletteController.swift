@@ -50,6 +50,24 @@ final class PaletteController: NSObject, NSWindowDelegate {
         return panel
     }
 
+    /// Lets the user pick a folder in a Finder sheet attached to the palette, so the palette
+    /// stays open (a separate window would take focus and dismiss it).
+    func chooseFolder(_ done: @escaping (URL) -> Void) {
+        let open = NSOpenPanel()
+        open.canChooseDirectories = true
+        open.canChooseFiles = false
+        open.allowsMultipleSelection = false
+        open.prompt = "Add"
+        open.directoryURL = FileManager.default.homeDirectoryForCurrentUser
+        if let panel {
+            open.beginSheetModal(for: panel) { response in
+                if response == .OK, let url = open.url { done(url) }
+            }
+        } else if open.runModal() == .OK, let url = open.url {
+            done(url)
+        }
+    }
+
     func toggle() {
         isVisible ? hide() : show()
     }
@@ -108,7 +126,10 @@ final class PaletteController: NSObject, NSWindowDelegate {
     nonisolated func windowDidResignKey(_ notification: Notification) {
         Task { @MainActor in
             // Clicking elsewhere dismisses the palette, like Spotlight.
-            if NSApp.keyWindow == nil || NSApp.keyWindow !== self.panel { self.hide() }
+            // A sheet on the palette (folder picker) takes key status; that isn't "clicking elsewhere".
+            if let key = NSApp.keyWindow, key === self.panel || key.sheetParent === self.panel { return }
+            if self.panel?.attachedSheet != nil { return }
+            self.hide()
         }
     }
 }

@@ -141,6 +141,12 @@ func (ops Ops) RenameBranch(repo, oldName, newName string) error {
 	return err
 }
 
+// Push publishes a local branch to origin (and tracks it), without needing it checked out.
+func (ops Ops) Push(repo, branch string) error {
+	_, err := ops.Git.Run(repo, "push", "-u", "origin", "refs/heads/"+branch+":refs/heads/"+branch)
+	return err
+}
+
 // Pull fetches and fast-forwards the worktree's current branch.
 func (ops Ops) Pull(worktree string) (string, error) {
 	return ops.Git.Run(worktree, "pull", "--ff-only")

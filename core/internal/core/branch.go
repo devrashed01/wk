@@ -1,9 +1,9 @@
 package core
 
 import (
-	"strings"
-
+	"errors"
 	"fmt"
+	"strings"
 
 	"wk/internal/gitops"
 )
@@ -43,6 +43,17 @@ func (service *Service) RenameBranch(taskQuery, newName string) (string, error) 
 }
 
 // Pull fast-forwards the task's worktree from its upstream.
+// PushBranch saves a branch's commits to origin, e.g. before removing it in Cleanup.
+func (service *Service) PushBranch(repo, branch string) (string, error) {
+	if repo == "" || branch == "" {
+		return "", errors.New("push needs a repo and a branch")
+	}
+	if err := service.Ops.Push(repo, branch); err != nil {
+		return "", err
+	}
+	return "Pushed " + branch + " to origin", nil
+}
+
 func (service *Service) Pull(taskQuery string) (string, error) {
 	task, err := service.task(taskQuery)
 	if err != nil {

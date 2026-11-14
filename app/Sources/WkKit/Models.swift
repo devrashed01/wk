@@ -296,7 +296,7 @@ public struct LayoutConfig: Codable, Hashable, Sendable {
 
     public static let maxPanes = 6
     public static let standard = LayoutConfig(arrange: "main-left", mainSize: 60,
-                                              panes: [PaneConfig(kind: "claude"), PaneConfig(kind: "server"), PaneConfig(kind: "shell", name: "Git")])
+                                              panes: [PaneConfig(kind: "claude"), PaneConfig(kind: "server"), PaneConfig(kind: "command", name: "Git", command: "lazygit 2>/dev/null || git status -sb")])
 
     public static let arrangements: [(id: String, label: String)] = [
         ("main-left", "Main left"), ("main-right", "Main right"), ("main-top", "Main top"),

@@ -50,6 +50,11 @@ func cmdRemove(service *core.Service, args []string) error {
 	for key, option := range plan.Options {
 		options[key] = option.Default && option.Available
 	}
+	// `wk rm` names the task explicitly, so it removes the folder and branch unless told to keep
+	// them; the typed confirmation below still guards lost work. (The app pre-ticks only safe steps.)
+	for _, key := range []string{core.OptRemoveWorktree, core.OptDeleteBranch} {
+		options[key] = plan.Options[key].Available
+	}
 	setIf := func(flagValue bool, key string, value bool) {
 		if flagValue {
 			options[key] = value && plan.Options[key].Available

@@ -90,11 +90,13 @@ func (service *Service) planFor(task Task) RemovePlan {
 	case task.MainWorktree:
 		plan.Options[OptRemoveWorktree] = Option{Reason: "this is the main repository folder; it is never removed"}
 	default:
-		option := Option{Available: true, Default: true}
+		// Pre-ticked only when nothing would be lost; the user can still opt in (and must confirm).
+		option := Option{Available: true, Default: facts.Dirty == 0}
 		if task.Missing {
 			option.Reason = "folder already gone; this prunes git's record of it"
+			option.Default = true
 		} else if facts.Dirty > 0 {
-			option.Reason = fmt.Sprintf("%d uncommitted change(s) will be lost", facts.Dirty)
+			option.Reason = plural(facts.Dirty, "uncommitted change", "uncommitted changes") + " will be lost"
 		}
 		plan.Options[OptRemoveWorktree] = option
 	}
@@ -105,9 +107,16 @@ func (service *Service) planFor(task Task) RemovePlan {
 	case task.IsBase:
 		plan.Options[OptDeleteBranch] = Option{Reason: "base branches are never deleted"}
 	default:
-		option := Option{Available: true, Default: true}
+		// Pre-ticked only when the commits are safe elsewhere: merged, or pushed to origin.
+		option := Option{Available: true, Default: facts.Unpushed == 0 && (facts.Merged || facts.HasRemote)}
+		// git can't delete a branch that's still checked out, so it follows the folder's default.
+		if worktree, ok := plan.Options[OptRemoveWorktree]; ok && worktree.Available && !worktree.Default {
+			option.Default = false
+		}
 		if facts.Unpushed > 0 {
-			option.Reason = fmt.Sprintf("%d commit(s) exist only on this branch and will be lost", facts.Unpushed)
+			option.Reason = plural(facts.Unpushed, "commit exists", "commits exist") + " only on this branch and will be lost"
+		} else if !facts.Merged && !facts.HasRemote {
+			option.Reason = "not merged and not on origin; its commits would only survive in the reflog"
 		}
 		plan.Options[OptDeleteBranch] = option
 		if task.MainWorktree {
@@ -131,7 +140,7 @@ func (service *Service) planFor(task Task) RemovePlan {
 	}
 	trashOption := Option{Available: facts.Sessions > facts.LiveSessions, Default: false}
 	if facts.LiveSessions > 0 {
-		trashOption.Reason = fmt.Sprintf("%d running session(s) are kept", facts.LiveSessions)
+		trashOption.Reason = plural(facts.LiveSessions, "running session is", "running sessions are") + " kept"
 	}
 	plan.Options[OptTrashSessions] = trashOption
 
@@ -246,7 +255,15 @@ func (service *Service) applyPlan(plan RemovePlan, request RemoveRequest, progre
 		if len(failures) > 0 {
 			err = errors.New(strings.Join(failures, "; "))
 		}
-		record(OptTrashSessions, err, fmt.Sprintf("Moved %d session(s) to trash (restorable)", trashed))
+		record(OptTrashSessions, err, "Moved "+plural(trashed, "session", "sessions")+" to trash (restorable)")
 	}
 	return results, nil
+}
+
+// plural formats "1 file" / "2 files".
+func plural(count int, one, many string) string {
+	if count == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", count, many)
 }

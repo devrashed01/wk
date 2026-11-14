@@ -192,6 +192,8 @@ func dispatch(service *core.Service, req request, progress core.Progress) (any, 
 		return message(service.RenameBranch(args.Task, args.New))
 	case "pull":
 		return message(service.Pull(args.Task))
+	case "push":
+		return message(service.PushBranch(args.Repo, args.Branch))
 	case "worktree_add":
 		return service.AddWorktree(args.Repo, args.Branch, args.New, args.Base, progress)
 	case "pin":
