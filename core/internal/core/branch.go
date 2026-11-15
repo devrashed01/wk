@@ -125,6 +125,28 @@ func (service *Service) SetNote(taskQuery, note string) error {
 	return service.updateTaskState(taskQuery, func(id string) { service.State.SetNote(id, note) })
 }
 
+// CloseWorkspace closes the task's cmux workspace. It refuses while Claude is live in it,
+// since closing would stop Claude mid-turn; Remove (with its checks) handles that case.
+func (service *Service) CloseWorkspace(taskQuery string) (string, error) {
+	task, err := service.task(taskQuery)
+	if err != nil {
+		return "", err
+	}
+	if task.Workspace == nil {
+		return "", fmt.Errorf("%s has no open cmux workspace", task.Branch)
+	}
+	if task.Running+task.Waiting > 0 {
+		return "", fmt.Errorf("Claude is still running in %s; stop it first or use Remove", task.Workspace.Title)
+	}
+	if err := service.Cmux.Close(task.Workspace.ID); err != nil {
+		return "", err
+	}
+	service.mutex.Lock()
+	service.haveWorkspaces = false // the next snapshot re-reads cmux
+	service.mutex.Unlock()
+	return "Closed cmux workspace " + task.Workspace.Title, nil
+}
+
 func (service *Service) updateTaskState(taskQuery string, update func(string)) error {
 	task, err := service.task(taskQuery)
 	if err != nil {

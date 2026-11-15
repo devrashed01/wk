@@ -200,6 +200,8 @@ func dispatch(service *core.Service, req request, progress core.Progress) (any, 
 		return message(service.PushBranch(args.Repo, args.Branch))
 	case "worktree_add":
 		return service.AddWorktree(args.Repo, args.Branch, args.New, args.Base, progress)
+	case "close_workspace":
+		return message(service.CloseWorkspace(args.Task))
 	case "pin":
 		return message("ok", service.SetPinned(args.Task, args.Value))
 	case "hide":

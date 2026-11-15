@@ -78,3 +78,11 @@ func TestBuildLayoutArrangements(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCreatedReturnsRef(t *testing.T) {
+	for input, want := range map[string]string{"OK workspace:12\n": "workspace:12", "workspace:3": "workspace:3", "OK ABC": "ABC"} {
+		if got := parseCreated([]byte(input)); got != want {
+			t.Errorf("%q: got %q, want %q", input, got, want)
+		}
+	}
+}

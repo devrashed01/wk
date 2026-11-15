@@ -88,3 +88,15 @@ func TestWithProgressReportsEachStep(t *testing.T) {
 		t.Fatalf("|| chains must stay one step: %s", got)
 	}
 }
+
+func TestCloseWorkspaceClosesOnlyIdleWorkspaces(t *testing.T) {
+	fx := newFixture(t)
+	if _, err := fx.service.CloseWorkspace("production"); err == nil {
+		t.Fatal("expected an error without a workspace")
+	}
+	fx.cmux.workspaces = []cmux.Workspace{{ID: "W1", Title: "ADMIN", Cwd: fx.repo}}
+	message, err := fx.service.CloseWorkspace("production")
+	if err != nil || !slices.Equal(fx.cmux.closed, []string{"W1"}) {
+		t.Fatalf("message=%q err=%v closed=%v", message, err, fx.cmux.closed)
+	}
+}

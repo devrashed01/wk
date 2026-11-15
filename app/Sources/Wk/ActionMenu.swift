@@ -156,6 +156,20 @@ struct TaskActionsOverlay: View {
                 store.overlay = .remove(taskID: task.id)
             },
         ]
+        if let workspace = task.workspace {
+            // Closing stops a live Claude mid-turn, so that case goes through Remove and its checks.
+            let live = task.running + task.waiting > 0
+            let closeItem = ActionItem(id: "closews", section: "Remove",
+                                   title: live ? "Close cmux workspace… (Claude is running)" : "Close cmux workspace \(workspace.title)",
+                                   symbol: "xmark.rectangle") {
+                if live {
+                    store.overlay = .remove(taskID: task.id)
+                } else {
+                    close(); store.taskCommand("close_workspace", ["task": task.id], title: "Closing \(workspace.title)")
+                }
+            }
+            list.insert(closeItem, at: list.firstIndex { $0.id == "remove" } ?? list.endIndex)
+        }
         return list
     }
 }

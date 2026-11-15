@@ -279,7 +279,7 @@ func (client Client) CreateWorkspace(name, cwd, command, layout string) (string,
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	return parseCreated(out), nil
 }
 
 type layoutSurface struct {
@@ -359,4 +359,14 @@ func BuildLayout(arrange string, mainSize int, panes []PaneSpec) string {
 func (client Client) NewSurface(workspace, command string) error {
 	_, err := client.run("new-surface", "--type", "terminal", "--workspace", workspace, "--command", command, "--focus", "true")
 	return err
+}
+
+// parseCreated pulls the workspace ref out of new-workspace's "OK workspace:3" reply.
+func parseCreated(out []byte) string {
+	for _, field := range strings.Fields(string(out)) {
+		if strings.HasPrefix(field, "workspace:") {
+			return field
+		}
+	}
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(out)), "OK"))
 }
