@@ -20,9 +20,10 @@ struct TasksPane: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
+                        let prColumn = tasks.contains { $0.pr != nil || !($0.envPrs ?? []).isEmpty }
                         LazyVStack(spacing: 1) {
                             ForEach(tasks) { task in
-                                TaskRow(task: task, selected: task.id == store.selectedTask?.id)
+                                TaskRow(task: task, selected: task.id == store.selectedTask?.id, prColumn: prColumn)
                                     .id(task.id)
                                     .onTapGesture(count: 2) { store.open(task) }
                                     .onTapGesture { select(task) }
@@ -97,7 +98,8 @@ struct TaskDetailView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
                             Chip(text: task.repoLabel)
-                            if let ticket = task.ticket { Chip(text: ticket, color: .blue) }
+                            // The branch title already says the ticket when it names it.
+                            if let ticket = task.ticket, !task.branch.contains(ticket) { Chip(text: ticket, color: .blue) }
                             if task.isBase { Chip(text: "base") }
                             if task.merged { Chip(text: "merged", color: .green) }
                             if task.gone { Chip(text: "remote deleted", color: .orange) }
@@ -145,6 +147,7 @@ struct TaskDetailView: View {
                         ProgressView().controlSize(.small)
                     }
                 }
+                .padding(.top, 8) // line up with the first list row
                 .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -204,8 +207,9 @@ struct TaskDetailView: View {
             if let issue = task.issue {
                 FactRow(label: "Jira") {
                     HStack(spacing: 6) {
-                        Text(issue.status)
-                        if let assignee = issue.assignee { Text("· " + assignee).foregroundStyle(.secondary).lineLimit(1) }
+                        // The status is already in the header, next to the ticket title.
+                        Text(issue.assignee.map { "Assigned to " + $0 } ?? "Unassigned").foregroundStyle(.secondary).lineLimit(1)
+                        Text("·").foregroundStyle(.tertiary)
                         Button("Open \(issue.key) in Jira") { if let url = URL(string: issue.url) { NSWorkspace.shared.open(url) } }
                             .buttonStyle(.link)
                     }
@@ -291,9 +295,8 @@ struct SessionsPane: View {
 
     var body: some View {
         @Bindable var store = store
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                HStack {
+        VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 0) {
                     // Same pill language as the cleanup filters, instead of a bare checkbox.
                     Button {
                         store.includeTrash.toggle()
@@ -314,13 +317,16 @@ struct SessionsPane: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
-                    if store.sessionsLoading {
-                        ProgressView().controlSize(.small).padding(.leading, 6)
+                    // While the list is empty the spinner sits in the list instead.
+                    if store.sessionsLoading && !store.sessions.isEmpty {
+                        ProgressView().controlSize(.small).padding(.leading, 8)
                     }
-                    StatusLegend(kind: .sessions).padding(.leading, 14)
+                    StatusLegend(kind: .sessions).padding(.leading, 20)
                     Spacer()
                 }
-                .padding(.horizontal, 6).padding(.top, 2).padding(.bottom, 6)
+                .padding(.leading, 6)
+            HStack(spacing: 0) {
+            VStack(spacing: 0) {
                 if store.sessions.isEmpty {
                     if store.sessionsLoading {
                         ProgressView("Searching sessions…").controlSize(.small)
@@ -349,6 +355,7 @@ struct SessionsPane: View {
             Spacer().frame(width: 40)
             SessionDetailView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 }
@@ -413,9 +420,12 @@ struct SessionDetailView: View {
                         FactRow(label: "ID") { Text(session.id).font(.system(size: 12, design: .monospaced)).textSelection(.enabled) }
                     }
                 }
+                .padding(.top, 8) // line up with the first list row
                 .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+        } else if store.sessions.isEmpty && store.sessionsLoading {
+            Color.clear // the list shows the one spinner
         } else {
             EmptyState(symbol: "sidebar.right", title: "Select a session")
         }

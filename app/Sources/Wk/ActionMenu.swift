@@ -48,7 +48,9 @@ struct ActionMenuOverlay: View {
                                     .padding(.top, index == 0 ? 0 : 8).padding(.leading, 8)
                             }
                             HStack {
-                                Image(systemName: item.symbol).frame(width: 18)
+                                // Same box for every glyph, so wide ones (copy, folder) don't look bigger.
+                                Image(systemName: item.symbol).resizable().scaledToFit()
+                                    .frame(width: 14, height: 14).frame(width: 18)
                                 Text(item.title)
                                 Spacer()
                                 if !item.hint.isEmpty { Text(item.hint).font(.system(size: 12)).foregroundStyle(.secondary) }
@@ -124,7 +126,7 @@ struct TaskActionsOverlay: View {
             },
         ]
         if let issue = task.issue, let url = URL(string: issue.url) {
-            list.insert(ActionItem(id: "jira", section: "Branch", title: "Open \(issue.key) in Jira", symbol: "ticket") {
+            list.insert(ActionItem(id: "jira", section: "Links", title: "Open \(issue.key) in Jira", symbol: "ticket") {
                 close(); NSWorkspace.shared.open(url)
             }, at: list.firstIndex { $0.section == "Branch" } ?? list.endIndex)
         }
@@ -132,7 +134,7 @@ struct TaskActionsOverlay: View {
         let firstBranch = list.firstIndex { $0.section == "Branch" } ?? list.endIndex
         for (offset, (env, pr)) in prs.enumerated() {
             guard let url = URL(string: pr.url) else { continue }
-            list.insert(ActionItem(id: "pr\(pr.number)", section: "Branch", title: "Open \(env)pull request #\(pr.number) in browser", symbol: "arrow.triangle.pull") {
+            list.insert(ActionItem(id: "pr\(pr.number)", section: "Links", title: "Open \(env)pull request #\(pr.number) in browser", symbol: "arrow.triangle.pull") {
                 close(); NSWorkspace.shared.open(url)
             }, at: min(firstBranch + offset, list.endIndex))
         }

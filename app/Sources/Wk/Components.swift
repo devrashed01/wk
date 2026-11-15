@@ -22,7 +22,7 @@ struct TaskStatusIcon: View {
             } else if task.isOpen {
                 Image(systemName: "circle.inset.filled").foregroundStyle(Theme.open).help("Open in cmux")
             } else {
-                Image(systemName: "circle").foregroundStyle(.quaternary)
+                Color.clear // idle: nothing, so the dots that matter stand out
             }
         }
         .font(.system(size: 13))
@@ -72,6 +72,18 @@ struct StatusLegend: View {
             Image(systemName: symbol).foregroundStyle(color)
             Text(label)
         }
+    }
+}
+
+/// The per-repo tint wk also gives the repo's cmux workspaces (same hash and palette as the core).
+enum RepoTint {
+    static let palette: [UInt32] = [0x0090FF, 0x46A758, 0xF76B15, 0x8E4EC6, 0x12A594, 0xE5484D, 0xD6409F, 0xFFB224]
+
+    static func color(_ label: String) -> Color {
+        var hash: UInt32 = 2166136261
+        for byte in label.utf8 { hash = (hash ^ UInt32(byte)) &* 16777619 }
+        let rgb = palette[Int(hash % UInt32(palette.count))]
+        return Color(red: Double((rgb >> 16) & 0xFF) / 255, green: Double((rgb >> 8) & 0xFF) / 255, blue: Double(rgb & 0xFF) / 255)
     }
 }
 
@@ -166,7 +178,8 @@ struct PRChip: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Chip(text: env ?? "#\(pr.number)", color: color, systemImage: pr.state == "merged" ? "arrow.triangle.merge" : "arrow.triangle.pull")
+            Chip(text: env ?? "#\(pr.number)", color: color,
+                 systemImage: env != nil ? nil : pr.state == "merged" ? "arrow.triangle.merge" : "arrow.triangle.pull")
             if pr.isLive && pr.review == "approved" {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(.green)
             } else if pr.isLive && pr.review == "changes_requested" {
@@ -193,20 +206,29 @@ struct KeyHint: View {
     }
 }
 
+/// Fixed trailing columns (PRs, local changes, age) so chips line up down the list; the Jira
+/// status rides next to the branch, where it reads as part of the title.
 struct TaskRow: View {
     let task: WkTask
     let selected: Bool
+    var prColumn = true
+
+    static let prWidth: CGFloat = 132
+    static let localWidth: CGFloat = 50
+    static let timeWidth: CGFloat = 50
 
     var body: some View {
         HStack(spacing: 8) {
             TaskStatusIcon(task: task)
             Text(task.repoLabel)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
+                .foregroundStyle(RepoTint.color(task.repoLabel).opacity(0.9))
                 .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(width: 96, alignment: .leading)
+                .help(task.repoLabel)
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     if task.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.yellow) }
                     if task.isLinkedWorktree {
                         Image(systemName: "arrow.triangle.branch").font(.system(size: 11, weight: .semibold))
@@ -215,7 +237,8 @@ struct TaskRow: View {
                         Image(systemName: "house").font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.secondary).help("The repo's main folder")
                     }
-                    Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.middle)
+                    if let issue = task.issue { JiraChip(issue: issue).lineLimit(1).fixedSize() }
                 }
                 if let issue = task.issue {
                     // The ticket title names the work better than a session title or commit subject.
@@ -230,15 +253,26 @@ struct TaskRow: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 4)
-            if let issue = task.issue { JiraChip(issue: issue).lineLimit(1).frame(maxWidth: 110) }
-            if let pr = task.pr { PRChip(pr: pr) }
-            ForEach(task.envPrs ?? []) { item in PRChip(pr: item.pr, env: item.env) }
-            if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil") }
-            if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue) }
-            if !task.hasFolder && !task.detached { Chip(text: "not checked out", systemImage: "folder.badge.questionmark")
-                    .help("This branch has no folder on disk. Opening it asks where to check it out.") }
-            TimeLabel(date: task.lastActivity)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if prColumn {
+                HStack(spacing: 3) {
+                    if let pr = task.pr { PRChip(pr: pr) }
+                    ForEach(task.envPrs ?? []) { item in PRChip(pr: item.pr, env: item.env) }
+                }
+                .fixedSize()
+                .frame(width: Self.prWidth, alignment: .leading)
+            }
+            HStack(spacing: 3) {
+                if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil").help("\(task.dirty) uncommitted changes") }
+                if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue).help("\(task.ahead) commits not pushed") }
+                if !task.hasFolder && !task.detached {
+                    Image(systemName: "folder.badge.questionmark").font(.system(size: 12)).foregroundStyle(.secondary)
+                        .help("Not checked out: this branch has no folder on disk. Opening it asks where to check it out.")
+                }
+            }
+            .fixedSize()
+            .frame(width: Self.localWidth, alignment: .trailing)
+            TimeLabel(date: task.lastActivity).frame(width: Self.timeWidth, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -270,10 +304,11 @@ struct SessionRow: View {
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 1) {
                 TimeLabel(date: session.last)
-                if let size = session.sizeLabel {
+                // Only worth a glance when resuming would re-read a lot.
+                if session.isHeavy, let size = session.sizeLabel {
                     Text(size + (session.resumeCostCompact.map { " \($0)" } ?? ""))
-                        .font(.system(size: 11).monospacedDigit()).foregroundStyle(.tertiary)
-                        .help("transcript size — resuming re-reads roughly this many tokens")
+                        .font(.system(size: 11).monospacedDigit()).foregroundStyle(.orange.opacity(0.85))
+                        .help("Large transcript: resuming re-reads roughly this many tokens")
                 }
             }
         }
@@ -293,6 +328,8 @@ struct TimeLabel: View {
             Image(systemName: "clock").font(.system(size: 9))
             Text(RelativeTime.short(date)).font(.system(size: 11).monospacedDigit())
         }
+        .lineLimit(1)
+        .fixedSize()
         .foregroundStyle(.secondary)
     }
 }

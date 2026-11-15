@@ -107,6 +107,9 @@ public struct Session: Codable, Hashable, Identifiable, Sendable {
         return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 
+    /// Big enough that resuming is worth thinking twice about (≈ 1M+ tokens).
+    public var isHeavy: Bool { (size ?? 0) >= 4_000_000 }
+
     /// Short form for list rows, e.g. "≈ 443k tokens".
     public var resumeCostCompact: String? {
         guard let size, size > 0 else { return nil }

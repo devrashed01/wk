@@ -425,7 +425,8 @@ private struct JiraSettings: View {
                 }
                 TextField("Email", text: Binding(
                     get: { draft.jiraUser ?? "" },
-                    set: { draft.jiraUser = $0.isEmpty ? nil : $0 }), prompt: Text(draft.bitbucketUser ?? "you@company.com"))
+                    set: { draft.jiraUser = $0.isEmpty ? nil : $0 }),
+                    prompt: Text(draft.bitbucketUser.map { "Same as Pull requests: \($0)" } ?? "you@company.com"))
                 HStack {
                     SecureField("API token", text: $token, prompt: Text(saved ? "Saved in Keychain — paste a new one to replace it" : "Paste the token"))
                     Button("Save") { save(token.trimmingCharacters(in: .whitespacesAndNewlines)) }

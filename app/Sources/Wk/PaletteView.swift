@@ -116,7 +116,7 @@ struct PaletteLayout: View {
                     guard store.overlay == nil else { return .ignored }
                     primaryAction(single: press.modifiers.contains(.command)); return .handled
                 }
-            RemoteStatus()
+            if store.tab == .tasks { RemoteStatus() } // PRs and Jira only show on Tasks
             if !store.snapshot.cmuxRunning && store.snapshot.generatedAt > .distantPast {
                 Chip(text: "cmux not running", color: .orange, systemImage: "exclamationmark.triangle")
             }
