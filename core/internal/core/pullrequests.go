@@ -38,6 +38,7 @@ func (service *Service) attachPRs(snapshot *Snapshot) {
 			task.EnvPRs = envPRs(*task, branches)
 		}
 	}
+	service.remoteRepos = repos
 	service.PRs.Refresh(repos, service.prFetcher(), service.Git.Bin, false)
 }
 
@@ -61,6 +62,41 @@ func (service *Service) RefreshPRs() error {
 	}
 	service.PRs.Refresh(repos, service.prFetcher(), service.Git.Bin, true)
 	return nil
+}
+
+// RefreshRemote refetches pull requests and Jira tickets for what the last snapshot showed:
+// only stale ones, or all of them when force. Results land in the caches (and the app's next
+// snapshot) when they arrive.
+func (service *Service) RefreshRemote(force bool) error {
+	if service.remoteRepos == nil {
+		if _, err := service.Snapshot(); err != nil {
+			return err
+		}
+	}
+	if service.PRs != nil {
+		service.PRs.Refresh(service.remoteRepos, service.prFetcher(), service.Git.Bin, force)
+	}
+	if service.Jira != nil && service.Config.JiraSite != "" {
+		service.Jira.Refresh(service.remoteKeys, service.jiraClient(), force)
+	}
+	return nil
+}
+
+// Fetching says what is being fetched from the hosts right now.
+type Fetching struct {
+	PRs  bool `json:"prs"`
+	Jira bool `json:"jira"`
+}
+
+func (service *Service) Fetching() Fetching {
+	var state Fetching
+	if service.PRs != nil {
+		state.PRs = service.PRs.Busy()
+	}
+	if service.Jira != nil {
+		state.Jira = service.Jira.Busy()
+	}
+	return state
 }
 
 // envPRs finds the PRs of a feature's environment branches by name, so they show even when the
@@ -119,6 +155,7 @@ func (service *Service) attachIssues(snapshot *Snapshot) {
 		}
 	}
 	snapshot.JiraError = service.Jira.Error()
+	service.remoteKeys = keys
 	service.Jira.Refresh(keys, service.jiraClient(), false)
 }
 

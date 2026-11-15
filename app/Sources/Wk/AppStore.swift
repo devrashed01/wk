@@ -96,6 +96,10 @@ final class AppStore {
         }
     }
 
+    /// What the core is fetching from GitHub, Bitbucket and Jira, and when that last finished.
+    var fetching = FetchState()
+    var lastFetched: Date?
+
     @ObservationIgnored private let client: CoreClient?
     @ObservationIgnored private var watcher: FileWatcher?
     @ObservationIgnored private var watchedRepos: [String] = []
@@ -113,6 +117,9 @@ final class AppStore {
         checkForUpdates = UserDefaults.standard.object(forKey: "checkForUpdates") as? Bool ?? true
         if let executable = CoreClient.locateExecutable() {
             client = CoreClient(executable: executable)
+            client?.onFetching = { [weak self] state in
+                Task { @MainActor in self?.fetchingChanged(state) }
+            }
         } else {
             client = nil
             coreMissing = true
@@ -448,6 +455,18 @@ final class AppStore {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    private func fetchingChanged(_ state: FetchState) {
+        if fetching.any && !state.any { lastFetched = Date() }
+        fetching = state
+    }
+
+    /// ⌘⇧R: reload everything and fetch PRs and Jira tickets again now, whatever their age.
+    func refreshEverything() {
+        refresh(.all)
+        guard let client else { return }
+        Task { _ = try? await client.call("refresh_remote", [String: String](), as: Message.self) }
     }
 
     /// Fetch Jira tickets again now (after the Jira settings change).

@@ -23,6 +23,8 @@ type RepoPRs struct {
 type Cache struct {
 	Path string
 	TTL  time.Duration
+	// OnBusy is called (outside the lock) when fetching starts or stops; see Busy.
+	OnBusy func()
 
 	mutex    sync.Mutex
 	repos    map[string]RepoPRs
@@ -58,8 +60,8 @@ func (cache *Cache) Get(repo string) RepoPRs {
 // force fetches regardless of age.
 func (cache *Cache) Refresh(repos []string, fetcher Fetcher, gitBin string, force bool) {
 	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
 	cache.load()
+	idle := len(cache.fetching) == 0
 	for _, repo := range repos {
 		if cache.fetching[repo] || (!force && time.Since(cache.repos[repo].Fetched) < cache.TTL) {
 			continue
@@ -67,6 +69,18 @@ func (cache *Cache) Refresh(repos []string, fetcher Fetcher, gitBin string, forc
 		cache.fetching[repo] = true
 		go cache.fetch(repo, fetcher, gitBin)
 	}
+	started := idle && len(cache.fetching) > 0
+	cache.mutex.Unlock()
+	if started && cache.OnBusy != nil {
+		cache.OnBusy()
+	}
+}
+
+// Busy reports whether a fetch is running.
+func (cache *Cache) Busy() bool {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	return len(cache.fetching) > 0
 }
 
 func (cache *Cache) fetch(repo string, fetcher Fetcher, gitBin string) {
@@ -83,12 +97,16 @@ func (cache *Cache) fetch(repo string, fetcher Fetcher, gitBin string) {
 	}
 
 	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
 	delete(cache.fetching, repo)
 	previous := cache.repos[repo]
 	cache.repos[repo] = result
 	if previous.Error != result.Error || !reflect.DeepEqual(previous.Branches, result.Branches) {
 		cache.save()
+	}
+	done := len(cache.fetching) == 0
+	cache.mutex.Unlock()
+	if done && cache.OnBusy != nil {
+		cache.OnBusy()
 	}
 }
 

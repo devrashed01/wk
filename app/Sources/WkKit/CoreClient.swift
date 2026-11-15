@@ -12,6 +12,14 @@ public struct ProgressEvent: Sendable {
     public var isWarning: Bool { level == "warn" }
 }
 
+/// What the core is fetching from GitHub, Bitbucket and Jira right now.
+public struct FetchState: Codable, Sendable, Equatable {
+    public var prs: Bool
+    public var jira: Bool
+    public init(prs: Bool = false, jira: Bool = false) { self.prs = prs; self.jira = jira }
+    public var any: Bool { prs || jira }
+}
+
 /// Talks to a long-running `wk serve` process over newline-delimited JSON.
 /// Requests are answered in order by the core; responses are matched by id.
 public final class CoreClient: @unchecked Sendable {
@@ -23,6 +31,8 @@ public final class CoreClient: @unchecked Sendable {
     private var nextID = 0
     private var pending: [String: (Result<Data, Error>) -> Void] = [:]
     private var progressHandlers: [String: (ProgressEvent) -> Void] = [:]
+    /// Called (off the main thread) when PR or Jira fetches start or stop.
+    public var onFetching: (@Sendable (FetchState) -> Void)?
 
     public init(executable: URL) {
         self.executable = executable
@@ -125,8 +135,22 @@ public final class CoreClient: @unchecked Sendable {
         var message: String?
     }
 
+    private struct FetchingEnvelope: Decodable {
+        var data: FetchState
+    }
+
     private func handle(line: Data) {
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: line), let id = envelope.id else { return }
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: line) else { return }
+        if envelope.event == "fetching" {
+            if let state = try? JSONDecoder().decode(FetchingEnvelope.self, from: line).data {
+                lock.lock()
+                let handler = onFetching
+                lock.unlock()
+                handler?(state)
+            }
+            return
+        }
+        guard let id = envelope.id else { return }
         lock.lock()
         if envelope.event == "progress" {
             let handler = progressHandlers[id]

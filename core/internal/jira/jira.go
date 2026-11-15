@@ -194,6 +194,8 @@ func KeychainToken(user string) func() string {
 type Cache struct {
 	Path string
 	TTL  time.Duration
+	// OnBusy is called (outside the lock) when fetching starts or stops; see Busy.
+	OnBusy func()
 
 	mutex    sync.Mutex
 	data     cacheFile
@@ -245,9 +247,9 @@ func (cache *Cache) Error() string {
 // Refresh fetches stale keys in the background (all of them when force).
 func (cache *Cache) Refresh(keys []string, client *Client, force bool) {
 	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
 	cache.load()
 	if cache.fetching {
+		cache.mutex.Unlock()
 		return
 	}
 	var stale []string
@@ -257,10 +259,22 @@ func (cache *Cache) Refresh(keys []string, client *Client, force bool) {
 		}
 	}
 	if len(stale) == 0 {
+		cache.mutex.Unlock()
 		return
 	}
 	cache.fetching = true
+	cache.mutex.Unlock()
+	if cache.OnBusy != nil {
+		cache.OnBusy()
+	}
 	go cache.fetch(stale, client)
+}
+
+// Busy reports whether a fetch is running.
+func (cache *Cache) Busy() bool {
+	cache.mutex.Lock()
+	defer cache.mutex.Unlock()
+	return cache.fetching
 }
 
 func (cache *Cache) fetch(keys []string, client *Client) {
@@ -286,7 +300,12 @@ func (cache *Cache) fetch(keys []string, client *Client) {
 	close(results)
 
 	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
+	defer func() {
+		cache.mutex.Unlock()
+		if cache.OnBusy != nil {
+			cache.OnBusy()
+		}
+	}()
 	cache.fetching = false
 	before := cache.data.Error
 	beforeIssues := make(map[string]Issue, len(cache.data.Issues))

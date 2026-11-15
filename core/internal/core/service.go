@@ -40,6 +40,10 @@ type Service struct {
 	PRs  *prs.Cache  // nil turns pull requests off (tests)
 	Jira *jira.Cache // nil turns Jira off (tests)
 
+	// What the last snapshot asked PRs and Jira for, so a timer can keep them fresh between snapshots.
+	remoteRepos []string
+	remoteKeys  []string
+
 	decorateMutex sync.Mutex
 	decorated     map[string]decoration // what wk last showed in each cmux workspace, by ID
 }

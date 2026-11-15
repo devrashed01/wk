@@ -93,6 +93,49 @@ struct Chip: View {
     }
 }
 
+/// In the search bar: a spinner while PRs or Jira tickets are being fetched, then when they last
+/// were. Click to fetch again (same as ⌘⇧R).
+struct RemoteStatus: View {
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        if store.fetching.any || store.lastFetched != nil {
+            Button { store.refreshEverything() } label: {
+                HStack(spacing: 6) {
+                    if store.fetching.any {
+                        ProgressView().controlSize(.small).scaleEffect(0.8).frame(width: 14, height: 14)
+                        Text(label).foregroundStyle(.secondary)
+                    } else if let last = store.lastFetched {
+                        Image(systemName: "arrow.clockwise")
+                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                            Text(ago(last, now: context.date))
+                        }
+                    }
+                }
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(store.fetching.any)
+            .help(store.fetching.any ? label : "Pull requests and Jira tickets refresh every few minutes. Click or press ⌘⇧R to check now.")
+        }
+    }
+
+    private var label: String {
+        switch (store.fetching.prs, store.fetching.jira) {
+        case (true, true): "Updating PRs & Jira…"
+        case (true, false): "Updating PRs…"
+        default: "Updating Jira…"
+        }
+    }
+
+    private func ago(_ date: Date, now: Date) -> String {
+        let minutes = Int(now.timeIntervalSince(date) / 60)
+        return minutes < 1 ? "Updated just now" : "Updated \(minutes)m ago"
+    }
+}
+
 /// A Jira status ("Code Review"), grey for to-do, blue in progress, green done.
 struct JiraChip: View {
     let issue: JiraIssue

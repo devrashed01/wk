@@ -116,6 +116,7 @@ struct PaletteLayout: View {
                     guard store.overlay == nil else { return .ignored }
                     primaryAction(single: press.modifiers.contains(.command)); return .handled
                 }
+            RemoteStatus()
             if !store.snapshot.cmuxRunning && store.snapshot.generatedAt > .distantPast {
                 Chip(text: "cmux not running", color: .orange, systemImage: "exclamationmark.triangle")
             }
@@ -227,6 +228,7 @@ struct PaletteLayout: View {
                 EmptyView()
             }
             KeyHint(keys: "⌘1–4 ⌘←→", label: "Tabs")
+            if store.tab != .settings { KeyHint(keys: "⌘⇧R", label: "Refresh") }
             // Activities that run while the palette stays open (cleanup, settings) show here.
             if let activity = store.activities.first, !activity.done {
                 HStack(spacing: 6) {
@@ -253,7 +255,7 @@ struct PaletteLayout: View {
             Button("") { pickSession() }.keyboardShortcut("r", modifiers: .command)
             Button("") { togglePin() }.keyboardShortcut("p", modifiers: .command)
             Button("") { store.toggleTabFilter() }.keyboardShortcut("t", modifiers: .command)
-            Button("") { store.refresh(.all) }.keyboardShortcut("r", modifiers: [.command, .shift])
+            Button("") { store.refreshEverything() }.keyboardShortcut("r", modifiers: [.command, .shift])
         }
         .opacity(0)
         .frame(width: 0, height: 0)

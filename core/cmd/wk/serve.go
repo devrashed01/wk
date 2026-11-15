@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"wk/internal/config"
 	"wk/internal/core"
@@ -15,6 +16,7 @@ import (
 //   request   {"id":"1","cmd":"snapshot","args":{...}}
 //   response  {"id":"1","ok":true,"data":...} | {"id":"1","ok":false,"error":"..."}
 //   progress  {"id":"1","event":"progress","level":"step|warn","message":"..."}
+//   fetching  {"event":"fetching","data":{"prs":true,"jira":false}}  (no id; PR/Jira fetches start or stop)
 // Requests are handled one at a time so git and state writes never race.
 
 type request struct {
@@ -63,22 +65,59 @@ func serve() error {
 		return err
 	}
 	out := &writer{encoder: json.NewEncoder(os.Stdout)}
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
-	for scanner.Scan() {
-		var req request
-		if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
-			out.send(response{Error: "bad request: " + err.Error()})
-			continue
-		}
-		data, err := dispatch(service, req, serveProgress{id: req.ID, out: out})
-		if err != nil {
-			out.send(response{ID: req.ID, Error: err.Error()})
-			continue
-		}
-		out.send(response{ID: req.ID, OK: true, Data: data})
+
+	// Tell the app when PR or Jira fetches start and stop, so it can show they're running.
+	// State is read and sent under one lock, so the last event always matches the truth.
+	var fetchMutex sync.Mutex
+	notify := func() {
+		fetchMutex.Lock()
+		defer fetchMutex.Unlock()
+		out.send(response{Event: "fetching", Data: service.Fetching()})
 	}
-	return scanner.Err()
+	if service.PRs != nil {
+		service.PRs.OnBusy = notify
+	}
+	if service.Jira != nil {
+		service.Jira.OnBusy = notify
+	}
+
+	lines := make(chan []byte)
+	var scanErr error
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Buffer(make([]byte, 1024*1024), 16*1024*1024)
+		for scanner.Scan() {
+			lines <- append([]byte(nil), scanner.Bytes()...)
+		}
+		scanErr = scanner.Err()
+		close(lines)
+	}()
+
+	// Keep PRs and Jira fresh while nothing else asks for a snapshot (the caches skip anything
+	// newer than their TTL). Runs on this loop, so it never races a request.
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			_ = service.RefreshRemote(false)
+		case line, ok := <-lines:
+			if !ok {
+				return scanErr
+			}
+			var req request
+			if err := json.Unmarshal(line, &req); err != nil {
+				out.send(response{Error: "bad request: " + err.Error()})
+				continue
+			}
+			data, err := dispatch(service, req, serveProgress{id: req.ID, out: out})
+			if err != nil {
+				out.send(response{ID: req.ID, Error: err.Error()})
+				continue
+			}
+			out.send(response{ID: req.ID, OK: true, Data: data})
+		}
+	}
 }
 
 type taskArgs struct {
@@ -207,6 +246,10 @@ func dispatch(service *core.Service, req request, progress core.Progress) (any, 
 		return message("ok", service.RefreshJira())
 	case "refresh_prs":
 		return message("ok", service.RefreshPRs())
+	case "refresh_remote":
+		return message("ok", service.RefreshRemote(true))
+	case "fetching":
+		return service.Fetching(), nil
 	case "close_workspace":
 		return message(service.CloseWorkspace(args.Task))
 	case "pin":
