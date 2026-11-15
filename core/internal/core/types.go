@@ -4,6 +4,7 @@ package core
 
 import (
 	"time"
+	"wk/internal/prs"
 
 	"wk/internal/gitscan"
 )
@@ -26,6 +27,7 @@ type Repo struct {
 	ServerCmd  string             `json:"server_cmd,omitempty"`
 	Worktrees  []gitscan.Worktree `json:"worktrees"`
 	Error      string             `json:"error,omitempty"`
+	PRError    string             `json:"pr_error,omitempty"` // why pull requests couldn't be read
 }
 
 type Session struct {
@@ -80,6 +82,8 @@ type Task struct {
 	Behind       int        `json:"behind"`
 	Dirty        int        `json:"dirty"`
 	Workspace    *Workspace `json:"workspace,omitempty"`
+	PR           *prs.PR    `json:"pr,omitempty"`
+	EnvPRs       []EnvPR    `json:"env_prs,omitempty"` // PRs of its -dev/-stg branches
 	Sessions     []Session  `json:"sessions"`
 	Pinned       bool       `json:"pinned"`
 	Hidden       bool       `json:"hidden"`
@@ -89,6 +93,13 @@ type Task struct {
 	Waiting      int        `json:"waiting"`
 	ParentID     string     `json:"parent_id,omitempty"` // env branch (-dev/-stg) folded under its feature task
 	EnvBranches  []string   `json:"env_branches,omitempty"`
+}
+
+// EnvPR is the pull request of a feature's per-environment branch (VAY-12-dev into develop).
+type EnvPR struct {
+	Env    string `json:"env"` // dev, stg, prod...
+	Branch string `json:"branch"`
+	PR     prs.PR `json:"pr"`
 }
 
 type Workspace struct {

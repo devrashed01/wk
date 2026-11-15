@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"wk/internal/cmux"
+	"wk/internal/prs"
 )
 
 func decorateFixture(workspace cmux.Workspace) (*Service, *fakeCmux) {
@@ -98,5 +99,18 @@ func TestCloseWorkspaceClosesOnlyIdleWorkspaces(t *testing.T) {
 	message, err := fx.service.CloseWorkspace("production")
 	if err != nil || !slices.Equal(fx.cmux.closed, []string{"W1"}) {
 		t.Fatalf("message=%q err=%v closed=%v", message, err, fx.cmux.closed)
+	}
+}
+
+func TestEnvPRsMatchByNameAndTicket(t *testing.T) {
+	branches := map[string]prs.PR{
+		"VAY-12-login":     {Number: 1},
+		"VAY-12-stg":       {Number: 3},
+		"VAY-12-login-dev": {Number: 2},
+		"VAY-99-dev":       {Number: 9},
+	}
+	got := envPRs(Task{Branch: "VAY-12-login", Ticket: "VAY-12"}, branches)
+	if len(got) != 2 || got[0].Env != "dev" || got[0].PR.Number != 2 || got[1].Env != "stg" || got[1].PR.Number != 3 {
+		t.Fatalf("got %+v", got)
 	}
 }

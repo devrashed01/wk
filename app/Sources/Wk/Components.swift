@@ -93,6 +93,37 @@ struct Chip: View {
     }
 }
 
+/// "#12" tinted by state: green open, red failing checks, orange pending, purple merged, grey draft/closed.
+struct PRChip: View {
+    let pr: PullRequest
+    var env: String? // shows "stg" instead of "#12" for an environment branch's PR
+
+    var color: Color {
+        switch pr.state {
+        case "merged": .purple
+        case "draft", "closed": .secondary
+        default:
+            switch pr.checks {
+            case "failing": .red
+            case "pending": .orange
+            default: .green
+            }
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Chip(text: env ?? "#\(pr.number)", color: color, systemImage: pr.state == "merged" ? "arrow.triangle.merge" : "arrow.triangle.pull")
+            if pr.isLive && pr.review == "approved" {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 11)).foregroundStyle(.green)
+            } else if pr.isLive && pr.review == "changes_requested" {
+                Image(systemName: "exclamationmark.bubble.fill").font(.system(size: 11)).foregroundStyle(.orange)
+            }
+        }
+        .help((env.map { "\($0) " } ?? "") + "PR #\(pr.number): \(pr.title) — \(pr.summary)")
+    }
+}
+
 struct KeyHint: View {
     let keys: String
     let label: String
@@ -139,6 +170,8 @@ struct TaskRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
+            if let pr = task.pr { PRChip(pr: pr) }
+            ForEach(task.envPrs ?? []) { item in PRChip(pr: item.pr, env: item.env) }
             if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil") }
             if task.ahead > 0 { Chip(text: "↑\(task.ahead)", color: .blue) }
             if !task.hasFolder && !task.detached { Chip(text: "not checked out", systemImage: "folder.badge.questionmark")

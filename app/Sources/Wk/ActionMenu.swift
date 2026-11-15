@@ -123,6 +123,14 @@ struct TaskActionsOverlay: View {
                 close(); store.taskCommand("pull", ["task": task.id], title: "Pulling \(task.branch)")
             },
         ]
+        let prs = (task.pr.map { [("", $0)] } ?? []) + (task.envPrs ?? []).map { ($0.env + " ", $0.pr) }
+        let firstBranch = list.firstIndex { $0.section == "Branch" } ?? list.endIndex
+        for (offset, (env, pr)) in prs.enumerated() {
+            guard let url = URL(string: pr.url) else { continue }
+            list.insert(ActionItem(id: "pr\(pr.number)", section: "Branch", title: "Open \(env)pull request #\(pr.number) in browser", symbol: "arrow.triangle.pull") {
+                close(); NSWorkspace.shared.open(url)
+            }, at: min(firstBranch + offset, list.endIndex))
+        }
         if !task.isBase && !task.detached {
             list.append(ActionItem(id: "rename", section: "Branch", title: "Rename branch…", symbol: "pencil") {
                 store.overlay = .prompt(.renameBranch(taskID: task.id, current: task.branch))

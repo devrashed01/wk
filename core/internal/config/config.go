@@ -80,6 +80,9 @@ type Config struct {
 	// AutoStartClaude runs claude (fresh or --resume) right away when opening a workspace; by default
 	// the command is only typed at the prompt, since resuming re-reads the whole transcript and costs tokens.
 	AutoStartClaude bool `toml:"auto_start_claude,omitempty" json:"auto_start_claude,omitempty"`
+	// BitbucketUser is the Atlassian account email (or username, for an app password) that goes with
+	// the Bitbucket API token wk keeps in the Keychain; it lets wk show Bitbucket pull requests.
+	BitbucketUser string `toml:"bitbucket_user,omitempty" json:"bitbucket_user,omitempty"`
 	// PlainCmux stops wk showing task notes, repo colors and git status in cmux's sidebar.
 	PlainCmux bool `toml:"plain_cmux,omitempty" json:"plain_cmux,omitempty"`
 	// LabelStripPrefixes are removed from repo folder names for short labels ("acme-web" -> "WEB").

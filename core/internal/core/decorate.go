@@ -49,7 +49,7 @@ func GitStatus(task Task) cmux.Status {
 		return cmux.Status{Value: strings.Join(parts, " · "), Icon: "pencil", Color: "#F59E0B", Priority: 40}
 	case len(parts) > 0:
 		return cmux.Status{Value: strings.Join(parts, " "), Icon: "arrow.up.arrow.down", Color: "#4C8DFF", Priority: 40}
-	case task.Merged && !task.IsBase:
+	case (task.Merged || (task.PR != nil && task.PR.State == "merged")) && !task.IsBase:
 		return cmux.Status{Value: "merged", Icon: "checkmark.circle", Color: "#46A758", Priority: 40}
 	case task.Gone:
 		return cmux.Status{Value: "remote branch gone", Icon: "exclamationmark.triangle", Color: "#8B8D98", Priority: 40}

@@ -278,17 +278,22 @@ final class AppStore {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let claudeProjects = (config?.claudeDir.replacingOccurrences(of: "~", with: home) ?? home + "/.claude") + "/projects"
         let cmuxState = home + "/.cmuxterm"
+        let cacheDir = ProcessInfo.processInfo.environment["WK_CACHE_DIR"] ?? home + "/.cache/wk"
         if watcher == nil {
             watcher = FileWatcher { [weak self] paths in
                 var scope: ChangeScope = []
                 for path in paths {
+                    if path.hasPrefix(cacheDir) {
+                        if path.hasSuffix("/prs.json") { scope.formUnion(.sessions) } // new PR data: a cheap refresh shows it
+                        continue
+                    }
                     scope.formUnion(ChangeClassifier.scope(for: path, claudeProjects: claudeProjects, cmuxState: cmuxState))
                 }
                 guard !scope.isEmpty else { return }
                 Task { @MainActor in self?.refresh(scope) }
             }
         }
-        watcher?.watch([claudeProjects, cmuxState] + repos.map { $0 + "/.git" })
+        watcher?.watch([claudeProjects, cmuxState, cacheDir] + repos.map { $0 + "/.git" })
     }
 
     // MARK: Selection side effects
@@ -418,6 +423,17 @@ final class AppStore {
     func taskCommand(_ command: String, _ args: [String: String], title: String) {
         run(title) { client, progress in
             try await client.call(command, args, as: Message.self, progress: progress).message
+        }
+    }
+
+    /// Fetch pull requests again now (after the Bitbucket token changes).
+    func refreshPullRequests() {
+        guard let client else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(1)) // let the settings autosave land first
+            _ = try? await client.call("refresh_prs", [String: String](), as: Message.self)
+            try? await Task.sleep(for: .seconds(4))
+            refresh(.git)
         }
     }
 

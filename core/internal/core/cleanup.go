@@ -32,6 +32,7 @@ type CleanupItem struct {
 	Unpushed int         `json:"unpushed"`
 	Last     time.Time   `json:"last"`
 	Running  int         `json:"-"`
+	inBase   bool        // commits are in the base branch, so unpushed ones aren't lost
 }
 
 // Cleanup lists suggested removals. Nothing is changed.
@@ -52,6 +53,8 @@ func (service *Service) Cleanup() ([]CleanupItem, error) {
 			kind, reason = CleanupMissingWorktree, "worktree folder was deleted"
 		case task.Merged:
 			kind, reason = CleanupMerged, "merged into "+service.repoSettings(task.Repo).BaseBranch
+		case task.PR != nil && task.PR.State == "merged":
+			kind, reason = CleanupMerged, fmt.Sprintf("PR #%d was merged", task.PR.Number)
 		case task.Gone:
 			kind, reason = CleanupGone, "remote branch was deleted (PR likely merged)"
 		case task.LastActivity.Before(staleCutoff) && task.Running+task.Waiting == 0:
@@ -62,7 +65,7 @@ func (service *Service) Cleanup() ([]CleanupItem, error) {
 		item := CleanupItem{
 			ID: task.ID, Kind: kind, Repo: task.Repo, RepoName: task.RepoName, Branch: task.Branch,
 			Path: task.Path, Title: task.RepoLabel + " " + task.Branch, Reason: reason, Last: task.LastActivity,
-			Dirty: task.Dirty, Running: task.Running + task.Waiting,
+			Dirty: task.Dirty, Running: task.Running + task.Waiting, inBase: task.Merged,
 		}
 		if task.Missing {
 			item.Dirty = 0
@@ -80,7 +83,7 @@ func (service *Service) Cleanup() ([]CleanupItem, error) {
 			defer func() { <-limit }()
 			item := &items[index]
 			item.Unpushed = service.Git.Unpushed(item.Repo, item.Branch)
-			item.Safe = item.Dirty == 0 && (item.Unpushed == 0 || item.Kind == CleanupMerged) && item.Running == 0
+			item.Safe = item.Dirty == 0 && (item.Unpushed == 0 || item.inBase) && item.Running == 0
 		}()
 	}
 	group.Wait()

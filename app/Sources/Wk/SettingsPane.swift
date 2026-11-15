@@ -2,7 +2,7 @@ import SwiftUI
 import WkKit
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, claude, cmux, layout, scanning, repos
+    case general, appearance, claude, cmux, pullRequests, layout, scanning, repos
 
     var id: String { rawValue }
 
@@ -12,6 +12,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .appearance: "Appearance"
         case .claude: "Claude"
         case .cmux: "cmux"
+        case .pullRequests: "Pull requests"
         case .layout: "Layout"
         case .scanning: "Scanning"
         case .repos: "Repos"
@@ -24,6 +25,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .appearance: "paintbrush"
         case .claude: "sparkles"
         case .cmux: "sidebar.right"
+        case .pullRequests: "arrow.triangle.pull"
         case .layout: "rectangle.split.2x1"
         case .scanning: "folder.badge.gearshape"
         case .repos: "shippingbox"
@@ -36,6 +38,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "hotkey shortcut option space open launch login startup notify notification alert cmux terminal iterm fallback update version"
         case .appearance: "blur backdrop dim dimming dark transparency look theme"
         case .claude: "start claude automatically auto resume tokens single pane zsh"
+        case .pullRequests: "pull request pr github gh bitbucket token api checks review merged"
         case .cmux: "cmux sidebar panel note description color colour status pill git progress setup right"
         case .layout: "layout panes pane split grid columns rows tabs arrangement main size server git shell command workspace"
         case .scanning: "scan folders roots base branch strip prefix label recent days"
@@ -54,6 +57,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .appearance: .pink
         case .claude: .orange
         case .cmux: .teal
+        case .pullRequests: .indigo
         case .layout: .purple
         case .scanning: .blue
         case .repos: .green
@@ -143,6 +147,7 @@ struct SettingsPane: View {
         case .appearance: AppearanceSettings()
         case .claude: ClaudeSettings(draft: draft)
         case .cmux: CmuxSettings(draft: draft)
+        case .pullRequests: PullRequestSettings(draft: draft)
         case .layout: LayoutSettings(draft: draft)
         case .scanning: ScanningSettings(draft: draft)
         case .repos: RepoSettingsPage(draft: draft)
@@ -317,6 +322,65 @@ private struct CmuxSettings: View {
                 if let message { Hint(message) }
             }
         }
+    }
+}
+
+private struct PullRequestSettings: View {
+    @Binding var draft: WkConfig
+    @Environment(AppStore.self) private var store
+    @State private var token = ""
+    @State private var saved = false
+    @State private var message: String?
+
+    private var user: String { (draft.bitbucketUser ?? "").trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        SettingsPage(category: .pullRequests, subtitle: "Each task shows its pull request: state, checks and review. Merged PRs also show up in Cleanup.") {
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent("GitHub") { Text("uses the gh CLI").foregroundStyle(.secondary) }
+                Hint("Repos on github.com use your `gh` login (`gh auth login`). Nothing to set up here.")
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("Bitbucket email", text: Binding(
+                    get: { draft.bitbucketUser ?? "" },
+                    set: { draft.bitbucketUser = $0.isEmpty ? nil : $0 }), prompt: Text("you@company.com"))
+                HStack {
+                    SecureField("API token", text: $token, prompt: Text(saved ? "Saved in Keychain — paste a new one to replace it" : "Paste the token"))
+                    Button("Save") {
+                        message = BitbucketToken.save(token.trimmingCharacters(in: .whitespacesAndNewlines), for: user)
+                        if message == nil {
+                            token = ""
+                            saved = true
+                            store.refreshPullRequests()
+                            message = "Saved. Pull requests appear within a few seconds."
+                        }
+                    }
+                    .disabled(token.isEmpty || user.isEmpty)
+                    if saved {
+                        Button("Remove") { BitbucketToken.delete(for: user); saved = false; message = nil }
+                    }
+                }
+                Hint("Create an API token at id.atlassian.com → Security → API tokens (\"Create API token with scopes\", app Bitbucket, scope read:pullrequest:bitbucket and read:repository:bitbucket). Use the email of your Atlassian account. The token stays in your macOS Keychain.")
+                Link("Open Atlassian API tokens", destination: URL(string: "https://id.atlassian.com/manage-profile/security/api-tokens")!)
+                    .font(.system(size: 12))
+                if let message { Hint(message) }
+            }
+            let problems = (store.snapshot.repos ?? []).filter { !($0.prError ?? "").isEmpty }
+            if !problems.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Couldn't read pull requests for")
+                    ForEach(problems) { repo in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(repo.label).bold()
+                            Text(repo.prError ?? "").foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        .font(.system(size: 12))
+                    }
+                }
+            }
+        }
+        .onAppear { saved = BitbucketToken.isSaved(for: user) }
+        .onChange(of: user) { _, value in saved = BitbucketToken.isSaved(for: value) }
     }
 }
 

@@ -73,6 +73,7 @@ func (service *Service) SnapshotScoped(scope Scope) (Snapshot, error) {
 	for _, scan := range scans {
 		snapshot.Repos = append(snapshot.Repos, scan.repo)
 	}
+	service.attachPRs(&snapshot)
 	cutoff := time.Now().AddDate(0, 0, -snapshotSessionDays)
 	for _, session := range sessions {
 		if session.State == StateRunning || session.State == StateWaiting || session.Last.After(cutoff) {

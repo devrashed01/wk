@@ -23,7 +23,40 @@ public struct Repo: Codable, Hashable, Identifiable, Sendable {
     public var serverCmd: String?
     public var worktrees: [Worktree]?
     public var error: String?
+    public var prError: String?
     public var id: String { path }
+}
+
+/// The PR of a feature's per-environment branch (VAY-12-dev, VAY-12-stg).
+public struct EnvPR: Codable, Hashable, Sendable, Identifiable {
+    public var env: String
+    public var branch: String
+    public var pr: PullRequest
+    public var id: String { branch }
+}
+
+/// A branch's pull request (GitHub or Bitbucket).
+public struct PullRequest: Codable, Hashable, Sendable {
+    public var number: Int
+    public var title: String
+    public var state: String // open, draft, merged, closed
+    public var url: String
+    public var checks: String? // passing, failing, pending
+    public var review: String? // approved, changes_requested
+
+    public var isLive: Bool { state == "open" || state == "draft" }
+
+    /// "open · checks failing · approved"
+    public var summary: String {
+        var parts = [state]
+        if isLive, let checks, !checks.isEmpty { parts.append("checks \(checks)") }
+        switch review {
+        case "approved": parts.append("approved")
+        case "changes_requested": parts.append("changes requested")
+        default: break
+        }
+        return parts.joined(separator: " · ")
+    }
 }
 
 public struct Session: Codable, Hashable, Identifiable, Sendable {
@@ -108,6 +141,8 @@ public struct WkTask: Codable, Hashable, Identifiable, Sendable {
     public var behind: Int
     public var dirty: Int
     public var workspace: Workspace?
+    public var pr: PullRequest?
+    public var envPrs: [EnvPR]?
     public var sessions: [Session]
     public var pinned: Bool
     public var hidden: Bool
@@ -363,6 +398,7 @@ public struct WkConfig: Codable, Hashable, Sendable {
     public var hotkey: String?
     public var autoStartClaude: Bool?
     public var plainCmux: Bool?
+    public var bitbucketUser: String?
     public var labelStripPrefixes: [String]?
     public var layout: LayoutConfig?
     public var repos: [String: RepoSettings]?

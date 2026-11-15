@@ -11,6 +11,7 @@ import (
 	"wk/internal/config"
 	"wk/internal/gitops"
 	"wk/internal/gitscan"
+	"wk/internal/prs"
 	"wk/internal/state"
 )
 
@@ -34,6 +35,8 @@ type Service struct {
 	cachedWorkspaces []cmux.Workspace
 	cmuxErr          error
 	haveWorkspaces   bool
+
+	PRs *prs.Cache // nil turns pull requests off (tests)
 
 	decorateMutex sync.Mutex
 	decorated     map[string]decoration // what wk last showed in each cmux workspace, by ID
@@ -73,6 +76,7 @@ func New() (*Service, error) {
 		Git:    git,
 		Ops:    gitops.Ops{Git: git},
 		Cmux:   cmux.New(cfg.CmuxBin),
+		PRs:    prs.NewCache(filepath.Join(config.CacheDir(), "prs.json")),
 	}, nil
 }
 

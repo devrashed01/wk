@@ -186,7 +186,17 @@ struct TaskDetailView: View {
             FactRow(label: "Git") {
                 Text("\(task.dirty) changed · ↑\(task.ahead) ↓\(task.behind)" + (task.upstream.map { " · \($0)" } ?? ""))
             }
-            if let envs = task.envBranches, !envs.isEmpty {
+            if let pr = task.pr {
+                PRFact(label: "PR", pr: pr)
+            }
+            ForEach(task.envPrs ?? []) { item in
+                PRFact(label: "PR " + item.env, pr: item.pr)
+            }
+            if task.pr == nil && (task.envPrs ?? []).isEmpty, let error = store.snapshot.repos?.first(where: { $0.path == task.repo })?.prError, !task.isBase {
+                FactRow(label: "PR") { Text(error).foregroundStyle(.secondary).lineLimit(2) }
+            }
+            let envs = (task.envBranches ?? []).filter { branch in !(task.envPrs ?? []).contains { $0.branch == branch } }
+            if !envs.isEmpty {
                 FactRow(label: "Env") { Text(envs.joined(separator: ", ")).lineLimit(2) }
             }
         }
@@ -207,6 +217,23 @@ struct TaskDetailView: View {
             if task.sessions.count > 6 {
                 Button("All \(task.sessions.count) sessions… (⌘R)") { store.overlay = .pickSession(taskID: task.id) }
                     .buttonStyle(.link).font(.system(size: 12))
+            }
+        }
+    }
+}
+
+/// One pull request line: chip, title (opens it in the browser), state summary.
+struct PRFact: View {
+    let label: String
+    let pr: PullRequest
+
+    var body: some View {
+        FactRow(label: label) {
+            HStack(spacing: 6) {
+                PRChip(pr: pr)
+                Button(pr.title) { if let url = URL(string: pr.url) { NSWorkspace.shared.open(url) } }
+                    .buttonStyle(.link).lineLimit(1).help("Open in the browser")
+                Text(pr.summary).foregroundStyle(.secondary).lineLimit(1)
             }
         }
     }
@@ -374,7 +401,7 @@ private let cleanupKinds = ["merged", "gone", "missing_worktree", "stale", "orph
 
 private func cleanupInfo(_ kind: String) -> (symbol: String, color: Color, blurb: String) {
     switch kind {
-    case "merged": ("checkmark.seal", .green, "Merged into the base branch. Safe to drop the folder and local branch.")
+    case "merged": ("checkmark.seal", .green, "Merged into the base branch, or its pull request was merged. Usually safe to drop the folder and local branch.")
     case "gone": ("icloud.slash", .blue, "The branch was deleted on origin, usually after the PR merged.")
     case "missing_worktree": ("folder.badge.questionmark", .purple, "The folder is gone but git still tracks it; this just prunes the record.")
     case "stale": ("hourglass", .orange, "No commits or Claude activity for a long time.")
