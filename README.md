@@ -17,7 +17,9 @@ You stop hunting for branch names and lost Claude sessions. Press a hotkey, type
 - **New task**: start from the base branch, a local or remote branch, or another worktree. It can be created in place or as a sibling worktree (`<repo>-<slug>`). For worktrees, `.env*` files are copied and dependencies installed automatically.
 - **Remove**: removes a worktree, branch, remote branch, cmux workspace or sessions, with safety checks. Before anything with uncommitted or unpushed work is removed, you must type the branch name. Sessions go to a trash you can restore from (Sessions tab → Include trash → **⌘⌫**, or `wk restore <id>`).
 - **Pull requests**: each task shows its PR (#12) colored by state and checks, with review status, in the list, the detail pane and ⌘K (open in browser). GitHub repos use your `gh` login; for Bitbucket, add your email and an API token under Settings → Pull requests (the token stays in the macOS Keychain). Merged PRs show up in Cleanup, which catches squash merges too.
-- **Cleanup** finds merged branches, branches whose upstream is gone, missing worktrees, stale branches and orphaned sessions.
+- **Jira**: with your Jira site and an API token (Settings → Jira, token kept in the Keychain), each branch that names a ticket shows its status, title and assignee. Ticket titles are searchable.
+- **PR alerts**: a notification when checks start failing, changes are requested, or a PR (main, dev or stg) is merged. Bitbucket PRs, and the dev/stg ones, also show as a pill on the task's cmux workspace.
+- **Cleanup** finds merged branches (a merged feature takes its merged `-dev`/`-stg` branches with it), branches whose upstream is gone, missing worktrees, stale branches and orphaned sessions.
 - **In cmux**, each task's workspace shows its wk note under the title, a color per repo and a git pill (uncommitted files, ↑ unpushed, ↓ to pull, merged). New worktrees show a progress bar while setup runs. Settings → cmux also installs a **wk panel** for cmux's right sidebar: the current task's note (click to edit it in wk), branch, PR and progress, plus every workspace with its note. Turn it all off with `plain_cmux = true`.
 - The menu-bar icon shows how many Claude sessions are waiting for you, and a notification fires when one finishes.
 - When a newer release exists, an **Update available** chip appears at the top left. Nothing installs by itself; you can turn the daily check off in Settings.
@@ -72,6 +74,7 @@ hotkey = "option+space"
 auto_start_claude = false        # false: only type `claude` / `claude --resume` in cmux, Enter runs it (resuming costs tokens)
 label_strip_prefixes = ["acme-"] # shorten repo labels: "acme-web" -> "web"
 bitbucket_user = ""               # Atlassian email for Bitbucket PRs (the token itself is kept in the Keychain)
+jira_site = ""                    # yourcompany.atlassian.net: ticket status and title next to branches
 plain_cmux = false               # true: don't show notes, repo colors and git status in cmux's sidebar
 
 [layout]                         # panes of a new cmux workspace (default: Claude | server / git)

@@ -74,6 +74,10 @@ final class AppStore {
     var notifyWhenWaiting: Bool {
         didSet { UserDefaults.standard.set(notifyWhenWaiting, forKey: "notifyWhenWaiting") }
     }
+    /// Notify when a PR's checks fail, changes are requested, or it's merged.
+    var notifyPullRequests: Bool = UserDefaults.standard.object(forKey: "notifyPullRequests") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(notifyPullRequests, forKey: "notifyPullRequests") }
+    }
     /// How dark the full-screen backdrop is (0 = no tint).
     var backdropOpacity: Double {
         didSet { UserDefaults.standard.set(backdropOpacity, forKey: "backdropOpacity") }
@@ -255,6 +259,7 @@ final class AppStore {
         guard let client else { return }
         do {
             let previous = snapshot.tasks?.flatMap(\.sessions) ?? []
+            let previousTasks = snapshot.tasks ?? []
             let next = try await client.call("snapshot", ScopeArgs(git: scope.contains(.git), cmux: scope.contains(.cmux)), as: Snapshot.self)
             snapshot = next
             lastError = nil
@@ -262,6 +267,11 @@ final class AppStore {
                 let finished = StateChanges.finished(previous: previous, current: next.tasks?.flatMap(\.sessions) ?? [])
                 for session in Set(finished) {
                     Notifier.claudeWaiting(session: session, task: task(session.taskId ?? ""))
+                }
+            }
+            if notifyPullRequests {
+                for alert in StateChanges.prAlerts(previous: previousTasks, current: next.tasks ?? []) {
+                    Notifier.pullRequest(alert)
                 }
             }
             updateWatcher()
@@ -284,7 +294,7 @@ final class AppStore {
                 var scope: ChangeScope = []
                 for path in paths {
                     if path.hasPrefix(cacheDir) {
-                        if path.hasSuffix("/prs.json") { scope.formUnion(.sessions) } // new PR data: a cheap refresh shows it
+                        if path.hasSuffix("/prs.json") || path.hasSuffix("/jira.json") { scope.formUnion(.sessions) } // new PR/Jira data: a cheap refresh shows it
                         continue
                     }
                     scope.formUnion(ChangeClassifier.scope(for: path, claudeProjects: claudeProjects, cmuxState: cmuxState))
@@ -423,6 +433,29 @@ final class AppStore {
     func taskCommand(_ command: String, _ args: [String: String], title: String) {
         run(title) { client, progress in
             try await client.call(command, args, as: Message.self, progress: progress).message
+        }
+    }
+
+    /// Finds the Jira site the saved token can read (tries names from the email, folders and remotes),
+    /// saves it in the config and reloads it. Returns a line for the settings page.
+    func detectJiraSite() async -> String {
+        guard let client else { return "wk's core isn't running." }
+        try? await Task.sleep(for: .seconds(1)) // let the settings autosave land first
+        do {
+            let site = try await client.call("jira_detect", [String: String](), as: Message.self).message
+            config = try? await client.call("config_get", as: WkConfig.self)
+            return "Found \(site). Ticket titles appear within a few seconds."
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Fetch Jira tickets again now (after the Jira settings change).
+    func refreshJira() {
+        guard let client else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(1)) // let the settings autosave land first
+            _ = try? await client.call("refresh_jira", [String: String](), as: Message.self)
         }
     }
 

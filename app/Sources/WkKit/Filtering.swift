@@ -34,7 +34,7 @@ public enum TaskFilter {
     }
 
     static func haystack(for task: WkTask) -> String {
-        var parts = [task.repoLabel, task.repoName, task.branch, task.ticket ?? "", task.note ?? ""]
+        var parts = [task.repoLabel, task.repoName, task.branch, task.ticket ?? "", task.note ?? "", task.issue?.summary ?? ""]
         parts += task.sessions.map(\.displayTitle)
         parts += task.envBranches ?? []
         return parts.joined(separator: " ").lowercased()
@@ -73,6 +73,52 @@ public enum StateChanges {
         return current.filter { session in
             session.state == .waiting && before[session.id] == .running
         }
+    }
+}
+
+/// A pull request change worth a notification.
+public struct PRAlert: Hashable, Sendable {
+    public enum Kind: Sendable { case checksFailing, changesRequested, merged }
+    public var taskID: String
+    public var title: String // "CUSTOMER ABC-4534 · dev #860"
+    public var kind: Kind
+    public var pr: PullRequest
+
+    public var headline: String {
+        switch kind {
+        case .checksFailing: "Checks failing on PR #\(pr.number)"
+        case .changesRequested: "Changes requested on PR #\(pr.number)"
+        case .merged: "PR #\(pr.number) merged"
+        }
+    }
+}
+
+extension StateChanges {
+    /// Compares each task's PRs (main and -dev/-stg) with the previous snapshot. A PR seen for the first
+    /// time never alerts, so starting wk doesn't flood you.
+    public static func prAlerts(previous: [WkTask], current: [WkTask]) -> [PRAlert] {
+        func prs(_ task: WkTask) -> [(String, PullRequest)] {
+            (task.pr.map { [("", $0)] } ?? []) + (task.envPrs ?? []).map { ($0.env + " ", $0.pr) }
+        }
+        var before: [String: PullRequest] = [:]
+        for task in previous {
+            for (_, pr) in prs(task) { before[pr.url] = pr }
+        }
+        var alerts: [PRAlert] = []
+        for task in current where task.parentId == nil || task.parentId?.isEmpty == true {
+            for (env, pr) in prs(task) {
+                guard let old = before[pr.url] else { continue }
+                let title = "\(task.displayName) · \(env)#\(pr.number)"
+                if pr.state == "merged" && old.state != "merged" {
+                    alerts.append(PRAlert(taskID: task.id, title: title, kind: .merged, pr: pr))
+                } else if pr.isLive && pr.checks == "failing" && old.checks != "failing" {
+                    alerts.append(PRAlert(taskID: task.id, title: title, kind: .checksFailing, pr: pr))
+                } else if pr.isLive && pr.review == "changes_requested" && old.review != "changes_requested" {
+                    alerts.append(PRAlert(taskID: task.id, title: title, kind: .changesRequested, pr: pr))
+                }
+            }
+        }
+        return alerts
     }
 }
 

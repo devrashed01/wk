@@ -175,8 +175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let info = response.notification.request.content.userInfo
         let taskID = info[Notifier.taskKey] as? String ?? ""
         let sessionID = info[Notifier.sessionKey] as? String ?? ""
+        let link = (info[Notifier.urlKey] as? String).flatMap(URL.init(string:))
         await MainActor.run {
-            if let task = store.task(taskID) {
+            if let link {
+                NSWorkspace.shared.open(link) // a PR alert opens the PR
+            } else if let task = store.task(taskID) {
                 store.open(task, session: sessionID.isEmpty ? nil : sessionID)
             } else if let session = store.session(sessionID) {
                 store.resume(session)

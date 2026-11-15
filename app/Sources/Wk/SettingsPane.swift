@@ -2,7 +2,7 @@ import SwiftUI
 import WkKit
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, claude, cmux, pullRequests, layout, scanning, repos
+    case general, appearance, claude, cmux, pullRequests, jira, layout, scanning, repos
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .claude: "Claude"
         case .cmux: "cmux"
         case .pullRequests: "Pull requests"
+        case .jira: "Jira"
         case .layout: "Layout"
         case .scanning: "Scanning"
         case .repos: "Repos"
@@ -26,6 +27,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .claude: "sparkles"
         case .cmux: "sidebar.right"
         case .pullRequests: "arrow.triangle.pull"
+        case .jira: "ticket"
         case .layout: "rectangle.split.2x1"
         case .scanning: "folder.badge.gearshape"
         case .repos: "shippingbox"
@@ -38,7 +40,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "hotkey shortcut option space open launch login startup notify notification alert cmux terminal iterm fallback update version"
         case .appearance: "blur backdrop dim dimming dark transparency look theme"
         case .claude: "start claude automatically auto resume tokens single pane zsh"
-        case .pullRequests: "pull request pr github gh bitbucket token api checks review merged"
+        case .jira: "jira ticket issue status summary assignee atlassian site token"
+        case .pullRequests: "pull request pr alert notification github gh bitbucket token api checks review merged"
         case .cmux: "cmux sidebar panel note description color colour status pill git progress setup right"
         case .layout: "layout panes pane split grid columns rows tabs arrangement main size server git shell command workspace"
         case .scanning: "scan folders roots base branch strip prefix label recent days"
@@ -58,6 +61,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .claude: .orange
         case .cmux: .teal
         case .pullRequests: .indigo
+        case .jira: .blue
         case .layout: .purple
         case .scanning: .blue
         case .repos: .green
@@ -148,6 +152,7 @@ struct SettingsPane: View {
         case .claude: ClaudeSettings(draft: draft)
         case .cmux: CmuxSettings(draft: draft)
         case .pullRequests: PullRequestSettings(draft: draft)
+        case .jira: JiraSettings(draft: draft)
         case .layout: LayoutSettings(draft: draft)
         case .scanning: ScanningSettings(draft: draft)
         case .repos: RepoSettingsPage(draft: draft)
@@ -340,6 +345,10 @@ private struct PullRequestSettings: View {
                 LabeledContent("GitHub") { Text("uses the gh CLI").foregroundStyle(.secondary) }
                 Hint("Repos on github.com use your `gh` login (`gh auth login`). Nothing to set up here.")
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Notify about pull requests", isOn: Binding(get: { store.notifyPullRequests }, set: { store.notifyPullRequests = $0 }))
+                Hint("When checks start failing, changes are requested, or a PR (main, dev or stg) is merged. Clicking the notification opens the PR.")
+            }
             VStack(alignment: .leading, spacing: 8) {
                 TextField("Bitbucket email", text: Binding(
                     get: { draft.bitbucketUser ?? "" },
@@ -347,7 +356,7 @@ private struct PullRequestSettings: View {
                 HStack {
                     SecureField("API token", text: $token, prompt: Text(saved ? "Saved in Keychain — paste a new one to replace it" : "Paste the token"))
                     Button("Save") {
-                        message = BitbucketToken.save(token.trimmingCharacters(in: .whitespacesAndNewlines), for: user)
+                        message = KeychainToken.bitbucket.save(token.trimmingCharacters(in: .whitespacesAndNewlines), for: user)
                         if message == nil {
                             token = ""
                             saved = true
@@ -357,7 +366,7 @@ private struct PullRequestSettings: View {
                     }
                     .disabled(token.isEmpty || user.isEmpty)
                     if saved {
-                        Button("Remove") { BitbucketToken.delete(for: user); saved = false; message = nil }
+                        Button("Remove") { KeychainToken.bitbucket.delete(for: user); saved = false; message = nil }
                     }
                 }
                 Hint("Create an API token at id.atlassian.com → Security → API tokens (\"Create API token with scopes\", app Bitbucket, scope read:pullrequest:bitbucket and read:repository:bitbucket). Use the email of your Atlassian account. The token stays in your macOS Keychain.")
@@ -379,8 +388,91 @@ private struct PullRequestSettings: View {
                 }
             }
         }
-        .onAppear { saved = BitbucketToken.isSaved(for: user) }
-        .onChange(of: user) { _, value in saved = BitbucketToken.isSaved(for: value) }
+        .onAppear { saved = KeychainToken.bitbucket.isSaved(for: user) }
+        .onChange(of: user) { _, value in saved = KeychainToken.bitbucket.isSaved(for: value) }
+    }
+}
+
+private struct JiraSettings: View {
+    @Binding var draft: WkConfig
+    @Environment(AppStore.self) private var store
+    @State private var token = ""
+    @State private var saved = false
+    @State private var message: String?
+    @State private var detecting = false
+
+    private var user: String {
+        let jira = (draft.jiraUser ?? "").trimmingCharacters(in: .whitespaces)
+        return jira.isEmpty ? (draft.bitbucketUser ?? "").trimmingCharacters(in: .whitespaces) : jira
+    }
+
+    var body: some View {
+        SettingsPage(category: .jira, subtitle: "Ticket title, status and assignee next to each branch that names a ticket (ABC-1234). Ticket titles are searchable too.") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    TextField("Jira site", text: Binding(
+                        get: { draft.jiraSite ?? "" },
+                        set: { draft.jiraSite = $0.isEmpty ? nil : $0 }), prompt: Text("yourcompany.atlassian.net"))
+                    Button(detecting ? "Looking…" : "Find my site") { detect() }
+                        .disabled(!saved || detecting)
+                        .help("Tries likely site names and keeps the one where your token can read one of your tickets")
+                }
+                if (draft.jiraSite ?? "").isEmpty {
+                    Label(saved ? "wk needs your Jira site to fetch tickets — type it, or click Find my site."
+                                : "wk needs your Jira site and an API token to fetch tickets.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12)).foregroundStyle(.orange)
+                }
+                TextField("Email", text: Binding(
+                    get: { draft.jiraUser ?? "" },
+                    set: { draft.jiraUser = $0.isEmpty ? nil : $0 }), prompt: Text(draft.bitbucketUser ?? "you@company.com"))
+                HStack {
+                    SecureField("API token", text: $token, prompt: Text(saved ? "Saved in Keychain — paste a new one to replace it" : "Paste the token"))
+                    Button("Save") { save(token.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                        .disabled(token.isEmpty || user.isEmpty)
+                    if saved {
+                        Button("Remove") { KeychainToken.jira.delete(for: user); saved = false; message = nil }
+                    }
+                }
+                if !saved, let bitbucket = KeychainToken.bitbucket.read(for: user) {
+                    Button("Use my Bitbucket token") { save(bitbucket) }
+                    Hint("Works if that token also has the Jira scope read:jira-work, or if it's a classic token without scopes.")
+                }
+                Hint("Create a token at id.atlassian.com → Security → API tokens. With scopes: app Jira, scope read:jira-work. The token stays in your macOS Keychain.")
+                Link("Open Atlassian API tokens", destination: URL(string: "https://id.atlassian.com/manage-profile/security/api-tokens")!)
+                    .font(.system(size: 12))
+                if let error = store.snapshot.jiraError, !error.isEmpty, draft.jiraSite?.isEmpty == false {
+                    Hint("Last check: \(error)")
+                } else if let message {
+                    Hint(message)
+                }
+            }
+        }
+        .onAppear { saved = KeychainToken.jira.isSaved(for: user) }
+        .onChange(of: user) { _, value in saved = KeychainToken.jira.isSaved(for: value) }
+        .onChange(of: draft.jiraSite) { _, _ in if saved { store.refreshJira() } }
+    }
+
+    private func save(_ value: String) {
+        message = KeychainToken.jira.save(value, for: user)
+        guard message == nil else { return }
+        token = ""
+        saved = true
+        if (draft.jiraSite ?? "").isEmpty {
+            detect() // no site yet: find it with the new token
+        } else {
+            store.refreshJira()
+            message = "Saved. Ticket titles appear within a few seconds."
+        }
+    }
+
+    private func detect() {
+        detecting = true
+        message = "Looking for your Jira site…"
+        Task {
+            message = await store.detectJiraSite()
+            detecting = false
+        }
     }
 }
 

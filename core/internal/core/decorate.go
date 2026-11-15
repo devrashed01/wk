@@ -6,13 +6,45 @@ import (
 	"strings"
 
 	"wk/internal/cmux"
+	"wk/internal/prs"
 )
 
 // wk mirrors a little of each task into its cmux workspace so the two feel like one tool:
 // the task note under the title, a per-repo tab color and a git status pill.
 
-// StatusKey is the cmux status entry wk owns.
-const StatusKey = "wk.git"
+// StatusKey and PRStatusKey are the cmux status entries wk owns.
+const (
+	StatusKey     = "wk.git"
+	PRStatusKey   = "wk.pr"
+	JiraStatusKey = "wk.jira"
+)
+
+// Description is what wk shows under the workspace title: the Jira ticket's title, then the wk note.
+func Description(task Task) string {
+	var lines []string
+	if task.Issue != nil && strings.TrimSpace(task.Issue.Summary) != "" {
+		lines = append(lines, strings.TrimSpace(task.Issue.Summary))
+	}
+	if note := strings.TrimSpace(task.Note); note != "" {
+		lines = append(lines, note)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// JiraStatus is the ticket pill: "ABC-4533 · In Progress", grey to-do, blue in progress, green done.
+func JiraStatus(task Task) cmux.Status {
+	if task.Issue == nil || task.Issue.Status == "" {
+		return cmux.Status{}
+	}
+	color := "#8B8D98"
+	switch task.Issue.Category {
+	case "indeterminate":
+		color = "#0090FF"
+	case "done":
+		color = "#46A758"
+	}
+	return cmux.Status{Value: task.Issue.Key + " · " + task.Issue.Status, Icon: "ticket", Color: color, Priority: 50}
+}
 
 // RepoColors are the tab tints, picked per repo label so a repo keeps its color.
 var RepoColors = []string{"#0090FF", "#46A758", "#F76B15", "#8E4EC6", "#12A594", "#E5484D", "#D6409F", "#FFB224"}
@@ -57,9 +89,51 @@ func GitStatus(task Task) cmux.Status {
 	return cmux.Status{}
 }
 
+// PRStatus is the pill for a task's pull requests: "#775 draft · dev open · stg draft". cmux shows
+// GitHub PRs on its own, so a lone GitHub PR is left to it.
+func PRStatus(task Task) cmux.Status {
+	type entry struct {
+		label string
+		pr    prs.PR
+	}
+	var entries []entry
+	if task.PR != nil {
+		entries = append(entries, entry{fmt.Sprintf("#%d", task.PR.Number), *task.PR})
+	}
+	for _, env := range task.EnvPRs {
+		entries = append(entries, entry{env.Env, env.PR})
+	}
+	if len(entries) == 0 || (len(entries) == 1 && task.PR != nil && strings.Contains(task.PR.URL, "github.com")) {
+		return cmux.Status{}
+	}
+	parts := make([]string, 0, len(entries))
+	color, live, failing, changes := "#8E4EC6", false, false, false // purple: everything merged
+	for _, item := range entries {
+		state := item.pr.State
+		if item.pr.Live() && item.pr.Checks == "failing" {
+			state, failing = "failing", true
+		}
+		if item.pr.Live() && item.pr.Review == "changes_requested" {
+			changes = true
+		}
+		live = live || item.pr.Live()
+		parts = append(parts, item.label+" "+state)
+	}
+	switch {
+	case failing:
+		color = "#E5484D"
+	case changes:
+		color = "#F76B15"
+	case live:
+		color = "#46A758"
+	}
+	return cmux.Status{Value: strings.Join(parts, " · "), Icon: "arrow.triangle.pull", Color: color, Priority: 30}
+}
+
 type decoration struct {
 	description, color string
-	status             cmux.Status
+	status, prStatus   cmux.Status
+	jiraStatus         cmux.Status
 }
 
 // DecorateCmux brings every open workspace up to date with its task. Only changes are sent,
@@ -113,12 +187,15 @@ func (service *Service) DecorateCmux(tasks []Task) {
 func (service *Service) decorate(workspace cmux.Workspace, task Task) {
 	id := strings.ToUpper(workspace.ID)
 	previous, known := service.decorated[id]
-	want := decoration{description: strings.TrimSpace(task.Note), color: RepoColor(task.RepoLabel), status: GitStatus(task)}
+	want := decoration{description: Description(task), jiraStatus: JiraStatus(task), color: RepoColor(task.RepoLabel), status: GitStatus(task), prStatus: PRStatus(task)}
 	applied := previous
 
 	// Description: write the note; clear it only when wk put the current text there.
 	if workspace.Description != want.description {
-		ours := workspace.Description == "" || (known && workspace.Description == previous.description)
+		// wk's own text from before (the note alone, or an older ticket title) counts as ours too.
+		ours := workspace.Description == "" || (known && workspace.Description == previous.description) ||
+			workspace.Description == strings.TrimSpace(task.Note) ||
+			(task.Issue != nil && strings.HasPrefix(workspace.Description, task.Issue.Summary))
 		if want.description != "" || ours {
 			if service.Cmux.SetDescription(workspace.ID, want.description) == nil {
 				applied.description = want.description
@@ -145,6 +222,16 @@ func (service *Service) decorate(workspace cmux.Workspace, task Task) {
 			applied.status = want.status
 		}
 	}
+	if !known || previous.jiraStatus != want.jiraStatus {
+		if service.Cmux.SetStatus(workspace.ID, JiraStatusKey, want.jiraStatus) == nil {
+			applied.jiraStatus = want.jiraStatus
+		}
+	}
+	if !known || previous.prStatus != want.prStatus {
+		if service.Cmux.SetStatus(workspace.ID, PRStatusKey, want.prStatus) == nil {
+			applied.prStatus = want.prStatus
+		}
+	}
 	service.decorated[id] = applied
 }
 
@@ -156,4 +243,6 @@ func (service *Service) undecorate(workspace cmux.Workspace, previous decoration
 		_ = service.Cmux.SetColor(workspace.ID, "")
 	}
 	_ = service.Cmux.SetStatus(workspace.ID, StatusKey, cmux.Status{})
+	_ = service.Cmux.SetStatus(workspace.ID, PRStatusKey, cmux.Status{})
+	_ = service.Cmux.SetStatus(workspace.ID, JiraStatusKey, cmux.Status{})
 }

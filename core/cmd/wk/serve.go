@@ -200,6 +200,11 @@ func dispatch(service *core.Service, req request, progress core.Progress) (any, 
 		return message(service.PushBranch(args.Repo, args.Branch))
 	case "worktree_add":
 		return service.AddWorktree(args.Repo, args.Branch, args.New, args.Base, progress)
+	case "jira_detect":
+		site, err := service.DetectJiraSite()
+		return message(site, err)
+	case "refresh_jira":
+		return message("ok", service.RefreshJira())
 	case "refresh_prs":
 		return message("ok", service.RefreshPRs())
 	case "close_workspace":

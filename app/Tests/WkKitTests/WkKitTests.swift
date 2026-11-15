@@ -150,3 +150,24 @@ final class LayoutTests: XCTestCase {
         XCTAssertEqual(try JSON.decoder.decode(LayoutConfig.self, from: data), layout)
     }
 }
+
+final class PRAlertTests: XCTestCase {
+    private func tasks(_ dev: PullRequest) throws -> [WkTask] {
+        var task = try XCTUnwrap(JSON.decoder.decode(Snapshot.self, from: Data(DecodingTests.snapshotJSON.utf8)).tasks?.first)
+        task.parentId = nil
+        task.envPrs = [EnvPR(env: "dev", branch: task.branch + "-dev", pr: dev)]
+        return [task]
+    }
+
+    func testAlertsOnlyOnChangesToKnownPRs() throws {
+        let open = PullRequest(number: 860, title: "Files", state: "open", url: "https://bb/860", checks: "passing")
+        var failing = open
+        failing.checks = "failing"
+        var merged = open
+        merged.state = "merged"
+        XCTAssertTrue(StateChanges.prAlerts(previous: [], current: try tasks(failing)).isEmpty, "first sight never alerts")
+        XCTAssertEqual(StateChanges.prAlerts(previous: try tasks(open), current: try tasks(failing)).map(\.kind), [.checksFailing])
+        XCTAssertEqual(StateChanges.prAlerts(previous: try tasks(open), current: try tasks(merged)).map(\.kind), [.merged])
+        XCTAssertTrue(StateChanges.prAlerts(previous: try tasks(failing), current: try tasks(failing)).isEmpty)
+    }
+}

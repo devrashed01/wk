@@ -123,6 +123,11 @@ struct TaskActionsOverlay: View {
                 close(); store.taskCommand("pull", ["task": task.id], title: "Pulling \(task.branch)")
             },
         ]
+        if let issue = task.issue, let url = URL(string: issue.url) {
+            list.insert(ActionItem(id: "jira", section: "Branch", title: "Open \(issue.key) in Jira", symbol: "ticket") {
+                close(); NSWorkspace.shared.open(url)
+            }, at: list.firstIndex { $0.section == "Branch" } ?? list.endIndex)
+        }
         let prs = (task.pr.map { [("", $0)] } ?? []) + (task.envPrs ?? []).map { ($0.env + " ", $0.pr) }
         let firstBranch = list.firstIndex { $0.section == "Branch" } ?? list.endIndex
         for (offset, (env, pr)) in prs.enumerated() {

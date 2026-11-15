@@ -27,12 +27,26 @@ public struct Repo: Codable, Hashable, Identifiable, Sendable {
     public var id: String { path }
 }
 
-/// The PR of a feature's per-environment branch (VAY-12-dev, VAY-12-stg).
+/// The Jira ticket named in the branch.
+public struct JiraIssue: Codable, Hashable, Sendable {
+    public var key: String
+    public var summary: String
+    public var status: String
+    public var category: String? // new, indeterminate, done
+    public var assignee: String?
+    public var url: String
+}
+
+/// The PR of a feature's per-environment branch (ABC-12-dev, ABC-12-stg).
 public struct EnvPR: Codable, Hashable, Sendable, Identifiable {
     public var env: String
     public var branch: String
     public var pr: PullRequest
     public var id: String { branch }
+
+    public init(env: String, branch: String, pr: PullRequest) {
+        self.env = env; self.branch = branch; self.pr = pr
+    }
 }
 
 /// A branch's pull request (GitHub or Bitbucket).
@@ -43,6 +57,10 @@ public struct PullRequest: Codable, Hashable, Sendable {
     public var url: String
     public var checks: String? // passing, failing, pending
     public var review: String? // approved, changes_requested
+
+    public init(number: Int, title: String, state: String, url: String, checks: String? = nil, review: String? = nil) {
+        self.number = number; self.title = title; self.state = state; self.url = url; self.checks = checks; self.review = review
+    }
 
     public var isLive: Bool { state == "open" || state == "draft" }
 
@@ -143,6 +161,7 @@ public struct WkTask: Codable, Hashable, Identifiable, Sendable {
     public var workspace: Workspace?
     public var pr: PullRequest?
     public var envPrs: [EnvPR]?
+    public var issue: JiraIssue?
     public var sessions: [Session]
     public var pinned: Bool
     public var hidden: Bool
@@ -172,12 +191,13 @@ public struct Counts: Codable, Hashable, Sendable {
 public struct Snapshot: Codable, Sendable {
     public var generatedAt: Date
     public var cmuxRunning: Bool
+    public var jiraError: String?
     public var repos: [Repo]?
     public var tasks: [WkTask]?
     public var sessions: [Session]?
     public var counts: Counts
 
-    public static let empty = Snapshot(generatedAt: .distantPast, cmuxRunning: false, repos: [], tasks: [], sessions: [],
+    public static let empty = Snapshot(generatedAt: .distantPast, cmuxRunning: false, jiraError: nil, repos: [], tasks: [], sessions: [],
                                        counts: Counts(running: 0, waiting: 0, open: 0, tasks: 0))
 }
 
@@ -265,6 +285,13 @@ public struct StepResult: Codable, Hashable, Sendable {
     public var message: String
 }
 
+/// An environment branch (-dev, -stg) removed together with its merged feature.
+public struct CleanupInclude: Codable, Hashable, Sendable {
+    public var id: String
+    public var branch: String
+    public var reason: String
+}
+
 public struct CleanupItem: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var kind: String
@@ -278,6 +305,7 @@ public struct CleanupItem: Codable, Hashable, Identifiable, Sendable {
     public var dirty: Int
     public var unpushed: Int
     public var last: Date
+    public var includes: [CleanupInclude]?
 
     public var kindLabel: String {
         switch kind {
@@ -399,6 +427,8 @@ public struct WkConfig: Codable, Hashable, Sendable {
     public var autoStartClaude: Bool?
     public var plainCmux: Bool?
     public var bitbucketUser: String?
+    public var jiraSite: String?
+    public var jiraUser: String?
     public var labelStripPrefixes: [String]?
     public var layout: LayoutConfig?
     public var repos: [String: RepoSettings]?

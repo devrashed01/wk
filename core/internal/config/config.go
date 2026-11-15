@@ -83,6 +83,10 @@ type Config struct {
 	// BitbucketUser is the Atlassian account email (or username, for an app password) that goes with
 	// the Bitbucket API token wk keeps in the Keychain; it lets wk show Bitbucket pull requests.
 	BitbucketUser string `toml:"bitbucket_user,omitempty" json:"bitbucket_user,omitempty"`
+	// JiraSite (acme.atlassian.net) and JiraUser (Atlassian email; defaults to BitbucketUser) let wk
+	// show ticket title and status; the API token is kept in the Keychain.
+	JiraSite string `toml:"jira_site,omitempty" json:"jira_site,omitempty"`
+	JiraUser string `toml:"jira_user,omitempty" json:"jira_user,omitempty"`
 	// PlainCmux stops wk showing task notes, repo colors and git status in cmux's sidebar.
 	PlainCmux bool `toml:"plain_cmux,omitempty" json:"plain_cmux,omitempty"`
 	// LabelStripPrefixes are removed from repo folder names for short labels ("acme-web" -> "WEB").

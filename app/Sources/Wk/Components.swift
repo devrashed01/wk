@@ -93,6 +93,16 @@ struct Chip: View {
     }
 }
 
+/// A Jira status ("Code Review"), grey for to-do, blue in progress, green done.
+struct JiraChip: View {
+    let issue: JiraIssue
+
+    var body: some View {
+        Chip(text: issue.status, color: issue.category == "done" ? .green : issue.category == "indeterminate" ? .blue : .secondary)
+            .help("\(issue.key): \(issue.summary)" + (issue.assignee.map { " — \($0)" } ?? ""))
+    }
+}
+
 /// "#12" tinted by state: green open, red failing checks, orange pending, purple merged, grey draft/closed.
 struct PRChip: View {
     let pr: PullRequest
@@ -164,12 +174,21 @@ struct TaskRow: View {
                     }
                     Text(task.branch).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 }
-                Text(task.latestSession?.displayTitle ?? task.subject ?? "")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let issue = task.issue {
+                    // The ticket title names the work better than a session title or commit subject.
+                    Text(issue.summary)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.primary.opacity(0.8))
+                        .lineLimit(1)
+                } else {
+                    Text(task.latestSession?.displayTitle ?? task.subject ?? "")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
+            if let issue = task.issue { JiraChip(issue: issue).lineLimit(1).frame(maxWidth: 110) }
             if let pr = task.pr { PRChip(pr: pr) }
             ForEach(task.envPrs ?? []) { item in PRChip(pr: item.pr, env: item.env) }
             if task.dirty > 0 { Chip(text: "\(task.dirty)", color: .orange, systemImage: "pencil") }

@@ -33,6 +33,16 @@ type CleanupItem struct {
 	Last     time.Time   `json:"last"`
 	Running  int         `json:"-"`
 	inBase   bool        // commits are in the base branch, so unpushed ones aren't lost
+	// Includes are the feature's -dev/-stg branches, removed along with it.
+	Includes []CleanupInclude `json:"includes,omitempty"`
+	parentID string
+}
+
+// CleanupInclude is an environment branch removed together with its feature.
+type CleanupInclude struct {
+	ID     string `json:"id"`
+	Branch string `json:"branch"`
+	Reason string `json:"reason"`
 }
 
 // Cleanup lists suggested removals. Nothing is changed.
@@ -65,13 +75,14 @@ func (service *Service) Cleanup() ([]CleanupItem, error) {
 		item := CleanupItem{
 			ID: task.ID, Kind: kind, Repo: task.Repo, RepoName: task.RepoName, Branch: task.Branch,
 			Path: task.Path, Title: task.RepoLabel + " " + task.Branch, Reason: reason, Last: task.LastActivity,
-			Dirty: task.Dirty, Running: task.Running + task.Waiting, inBase: task.Merged,
+			Dirty: task.Dirty, Running: task.Running + task.Waiting, inBase: task.Merged, parentID: task.ParentID,
 		}
 		if task.Missing {
 			item.Dirty = 0
 		}
 		items = append(items, item)
 	}
+	items = groupEnvBranches(items)
 	// Unpushed checks are one git call per branch: run them in parallel.
 	var group sync.WaitGroup
 	limit := make(chan struct{}, 8)
@@ -84,6 +95,12 @@ func (service *Service) Cleanup() ([]CleanupItem, error) {
 			item := &items[index]
 			item.Unpushed = service.Git.Unpushed(item.Repo, item.Branch)
 			item.Safe = item.Dirty == 0 && (item.Unpushed == 0 || item.inBase) && item.Running == 0
+			for _, include := range item.Includes {
+				item.Unpushed += service.Git.Unpushed(item.Repo, include.Branch)
+			}
+			if len(item.Includes) > 0 && item.Unpushed > 0 {
+				item.Safe = false
+			}
 		}()
 	}
 	group.Wait()
@@ -136,27 +153,35 @@ func (service *Service) ApplyCleanup(ids []string, force bool, progress Progress
 			results = append(results, stepFrom(item.Title, err, "Moved session to trash"))
 			continue
 		}
-		task, err := FindTask(snapshot.Tasks, item.ID)
-		if err != nil {
-			results = append(results, stepFrom(item.Title, err, ""))
-			continue
-		}
-		plan := service.planFor(task)
-		options := map[string]bool{OptCloseWorkspace: true, OptRemoveWorktree: true, OptDeleteBranch: true, OptSwitchMainToBase: true}
-		for key := range options {
-			options[key] = plan.Options[key].Available
-		}
-		steps, err := service.applyPlan(plan, RemoveRequest{Task: task.ID, Options: options, Confirm: task.Branch}, progress)
-		if err != nil {
-			results = append(results, stepFrom(item.Title, err, ""))
-			continue
-		}
-		for _, step := range steps {
-			step.Step = item.Title + ": " + step.Step
-			results = append(results, step)
+		results = append(results, service.removeForCleanup(snapshot, item.ID, item.Title, progress)...)
+		for _, include := range item.Includes {
+			results = append(results, service.removeForCleanup(snapshot, include.ID, item.Title+" "+include.Branch, progress)...)
 		}
 	}
 	return results, nil
+}
+
+// removeForCleanup removes one task's workspace, worktree and local branch, whatever is there.
+func (service *Service) removeForCleanup(snapshot Snapshot, id, title string, progress Progress) []StepResult {
+	task, err := FindTask(snapshot.Tasks, id)
+	if err != nil {
+		return []StepResult{stepFrom(title, err, "")}
+	}
+	plan := service.planFor(task)
+	options := map[string]bool{OptCloseWorkspace: true, OptRemoveWorktree: true, OptDeleteBranch: true, OptSwitchMainToBase: true}
+	for key := range options {
+		options[key] = plan.Options[key].Available
+	}
+	steps, err := service.applyPlan(plan, RemoveRequest{Task: task.ID, Options: options, Confirm: task.Branch}, progress)
+	if err != nil {
+		return []StepResult{stepFrom(title, err, "")}
+	}
+	results := make([]StepResult, 0, len(steps))
+	for _, step := range steps {
+		step.Step = title + ": " + step.Step
+		results = append(results, step)
+	}
+	return results
 }
 
 func stepFrom(step string, err error, okMessage string) StepResult {
@@ -164,4 +189,34 @@ func stepFrom(step string, err error, okMessage string) StepResult {
 		return StepResult{Step: step, Message: err.Error()}
 	}
 	return StepResult{Step: step, OK: true, Message: okMessage}
+}
+
+// groupEnvBranches folds merged/gone -dev and -stg items into their feature's item when the
+// feature itself is merged, so the whole set goes in one step.
+func groupEnvBranches(items []CleanupItem) []CleanupItem {
+	feature := map[string]int{}
+	for index, item := range items {
+		if item.Kind == CleanupMerged && item.parentID == "" {
+			feature[item.ID] = index
+		}
+	}
+	absorbed := make([]bool, len(items))
+	for index, item := range items {
+		position, ok := feature[item.parentID]
+		if item.parentID == "" || !ok || (item.Kind != CleanupMerged && item.Kind != CleanupGone) {
+			continue
+		}
+		parent := &items[position]
+		parent.Includes = append(parent.Includes, CleanupInclude{ID: item.ID, Branch: item.Branch, Reason: item.Reason})
+		parent.Dirty += item.Dirty
+		parent.Running += item.Running
+		absorbed[index] = true
+	}
+	kept := make([]CleanupItem, 0, len(items))
+	for index, item := range items {
+		if !absorbed[index] {
+			kept = append(kept, item)
+		}
+	}
+	return kept
 }

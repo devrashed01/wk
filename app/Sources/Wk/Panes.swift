@@ -105,6 +105,21 @@ struct TaskDetailView: View {
                         Text(task.branch)
                             .font(.system(size: 24, weight: .semibold))
                             .textSelection(.enabled)
+                        if let issue = task.issue {
+                            // The ticket's title is what the work is about: show it big, right under the branch.
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                JiraChip(issue: issue)
+                                Button { if let url = URL(string: issue.url) { NSWorkspace.shared.open(url) } } label: {
+                                    Text(issue.summary)
+                                        .font(.system(size: 17, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Open \(issue.key) in Jira")
+                            }
+                        }
                         if let note = task.note, !note.isEmpty {
                             Label(note, systemImage: "note.text").font(.callout).foregroundStyle(.secondary)
                         }
@@ -185,6 +200,18 @@ struct TaskDetailView: View {
             }
             FactRow(label: "Git") {
                 Text("\(task.dirty) changed · ↑\(task.ahead) ↓\(task.behind)" + (task.upstream.map { " · \($0)" } ?? ""))
+            }
+            if let issue = task.issue {
+                FactRow(label: "Jira") {
+                    HStack(spacing: 6) {
+                        Text(issue.status)
+                        if let assignee = issue.assignee { Text("· " + assignee).foregroundStyle(.secondary).lineLimit(1) }
+                        Button("Open \(issue.key) in Jira") { if let url = URL(string: issue.url) { NSWorkspace.shared.open(url) } }
+                            .buttonStyle(.link)
+                    }
+                }
+            } else if task.ticket != nil, let error = store.snapshot.jiraError, !error.isEmpty, store.config?.jiraSite?.isEmpty == false {
+                FactRow(label: "Jira") { Text(error).foregroundStyle(.secondary).lineLimit(2) }
             }
             if let pr = task.pr {
                 PRFact(label: "PR", pr: pr)
@@ -545,8 +572,11 @@ struct CleanupPane: View {
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(item.reason).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                Text(item.title + ((item.includes ?? []).isEmpty ? "" : " + " + (item.includes ?? []).map(\.branch).joined(separator: ", ")))
+                    .font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    .help((item.includes ?? []).map { "\($0.branch): \($0.reason)" }.joined(separator: "\n"))
+                Text(item.reason + ((item.includes ?? []).isEmpty ? "" : " · its \((item.includes ?? []).count == 1 ? "env branch goes" : "env branches go") too"))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
             if item.safe {

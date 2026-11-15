@@ -53,7 +53,7 @@ func (fake *fakeCmux) SetColor(workspace, color string) error {
 	return nil
 }
 func (fake *fakeCmux) SetStatus(workspace, key string, status cmux.Status) error {
-	fake.decorations = append(fake.decorations, workspace+"|status|"+status.Value)
+	fake.decorations = append(fake.decorations, workspace+"|"+key+"|"+status.Value)
 	return nil
 }
 func (fake *fakeCmux) Binary() string { return "cmux" }
@@ -400,7 +400,7 @@ func TestFindTaskByTicketNumber(t *testing.T) {
 	if err != nil || task.Ticket != "ABC-5346" {
 		t.Fatalf("task=%+v err=%v", task, err)
 	}
-	if _, err := FindTask(tasks, "VAY"); err == nil {
+	if _, err := FindTask(tasks, "ABC"); err == nil {
 		t.Error("expected ambiguity error")
 	}
 }

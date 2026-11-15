@@ -7,6 +7,7 @@ import (
 	"wk/internal/prs"
 
 	"wk/internal/gitscan"
+	"wk/internal/jira"
 )
 
 // SessionState describes what a Claude session is doing right now.
@@ -62,40 +63,41 @@ func (session Session) DisplayTitle() string {
 
 // Task is one (repo, branch) pair, checked out in a worktree or not.
 type Task struct {
-	ID           string     `json:"id"`
-	Repo         string     `json:"repo"`
-	RepoName     string     `json:"repo_name"`
-	RepoLabel    string     `json:"repo_label"`
-	Branch       string     `json:"branch"`
-	Ticket       string     `json:"ticket,omitempty"`
-	Path         string     `json:"path,omitempty"` // worktree path; empty when not checked out
-	MainWorktree bool       `json:"main_worktree"`
-	Detached     bool       `json:"detached"`
-	Missing      bool       `json:"missing"` // worktree registered but directory gone
-	IsBase       bool       `json:"is_base"`
-	CommitDate   time.Time  `json:"commit_date"`
-	Subject      string     `json:"subject,omitempty"`
-	Upstream     string     `json:"upstream,omitempty"`
-	Gone         bool       `json:"gone"`
-	Merged       bool       `json:"merged"`
-	Ahead        int        `json:"ahead"`
-	Behind       int        `json:"behind"`
-	Dirty        int        `json:"dirty"`
-	Workspace    *Workspace `json:"workspace,omitempty"`
-	PR           *prs.PR    `json:"pr,omitempty"`
-	EnvPRs       []EnvPR    `json:"env_prs,omitempty"` // PRs of its -dev/-stg branches
-	Sessions     []Session  `json:"sessions"`
-	Pinned       bool       `json:"pinned"`
-	Hidden       bool       `json:"hidden"`
-	Note         string     `json:"note,omitempty"`
-	LastActivity time.Time  `json:"last_activity"`
-	Running      int        `json:"running"`
-	Waiting      int        `json:"waiting"`
-	ParentID     string     `json:"parent_id,omitempty"` // env branch (-dev/-stg) folded under its feature task
-	EnvBranches  []string   `json:"env_branches,omitempty"`
+	ID           string      `json:"id"`
+	Repo         string      `json:"repo"`
+	RepoName     string      `json:"repo_name"`
+	RepoLabel    string      `json:"repo_label"`
+	Branch       string      `json:"branch"`
+	Ticket       string      `json:"ticket,omitempty"`
+	Path         string      `json:"path,omitempty"` // worktree path; empty when not checked out
+	MainWorktree bool        `json:"main_worktree"`
+	Detached     bool        `json:"detached"`
+	Missing      bool        `json:"missing"` // worktree registered but directory gone
+	IsBase       bool        `json:"is_base"`
+	CommitDate   time.Time   `json:"commit_date"`
+	Subject      string      `json:"subject,omitempty"`
+	Upstream     string      `json:"upstream,omitempty"`
+	Gone         bool        `json:"gone"`
+	Merged       bool        `json:"merged"`
+	Ahead        int         `json:"ahead"`
+	Behind       int         `json:"behind"`
+	Dirty        int         `json:"dirty"`
+	Workspace    *Workspace  `json:"workspace,omitempty"`
+	PR           *prs.PR     `json:"pr,omitempty"`
+	EnvPRs       []EnvPR     `json:"env_prs,omitempty"` // PRs of its -dev/-stg branches
+	Issue        *jira.Issue `json:"issue,omitempty"`   // the Jira ticket in the branch name
+	Sessions     []Session   `json:"sessions"`
+	Pinned       bool        `json:"pinned"`
+	Hidden       bool        `json:"hidden"`
+	Note         string      `json:"note,omitempty"`
+	LastActivity time.Time   `json:"last_activity"`
+	Running      int         `json:"running"`
+	Waiting      int         `json:"waiting"`
+	ParentID     string      `json:"parent_id,omitempty"` // env branch (-dev/-stg) folded under its feature task
+	EnvBranches  []string    `json:"env_branches,omitempty"`
 }
 
-// EnvPR is the pull request of a feature's per-environment branch (VAY-12-dev into develop).
+// EnvPR is the pull request of a feature's per-environment branch (ABC-12-dev into develop).
 type EnvPR struct {
 	Env    string `json:"env"` // dev, stg, prod...
 	Branch string `json:"branch"`
@@ -120,6 +122,7 @@ type Counts struct {
 type Snapshot struct {
 	GeneratedAt time.Time `json:"generated_at"`
 	CmuxRunning bool      `json:"cmux_running"`
+	JiraError   string    `json:"jira_error,omitempty"`
 	Repos       []Repo    `json:"repos"`
 	Tasks       []Task    `json:"tasks"`
 	Sessions    []Session `json:"sessions"` // recent sessions (all are available via Sessions())

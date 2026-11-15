@@ -6,6 +6,7 @@ import WkKit
 enum Notifier {
     static let taskKey = "taskID"
     static let sessionKey = "sessionID"
+    static let urlKey = "url"
 
     static func requestPermission() {
         guard Bundle.main.bundleIdentifier != nil else { return }
@@ -19,6 +20,15 @@ enum Notifier {
         content.body = session.displayTitle
         content.userInfo = [taskKey: task?.id ?? "", sessionKey: session.id]
         post(content, id: "waiting-\(session.id)")
+    }
+
+    static func pullRequest(_ alert: PRAlert) {
+        let content = UNMutableNotificationContent()
+        content.title = alert.headline
+        content.subtitle = alert.title
+        content.body = alert.pr.title
+        content.userInfo = [taskKey: alert.taskID, urlKey: alert.pr.url]
+        post(content, id: "pr-\(alert.pr.url)-\(alert.kind)")
     }
 
     static func result(title: String, body: String) {

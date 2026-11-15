@@ -1,11 +1,15 @@
 package core
 
 import (
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 
+	"wk/internal/config"
 	"wk/internal/gitops"
 	"wk/internal/gitscan"
+	"wk/internal/jira"
 	"wk/internal/prs"
 )
 
@@ -91,4 +95,107 @@ func rank(env string) int {
 		}
 	}
 	return len(envSuffixes)
+}
+
+// attachIssues puts each ticket's Jira issue on its task from the cache and refreshes stale
+// ones in the background. Without a Jira site nothing is fetched.
+func (service *Service) attachIssues(snapshot *Snapshot) {
+	if service.Jira == nil || service.Config.JiraSite == "" {
+		return
+	}
+	seen := map[string]bool{}
+	var keys []string
+	for index := range snapshot.Tasks {
+		task := &snapshot.Tasks[index]
+		if task.Ticket == "" {
+			continue
+		}
+		if issue, ok := service.Jira.Get(task.Ticket); ok {
+			task.Issue = &issue
+		}
+		if !seen[task.Ticket] {
+			seen[task.Ticket] = true
+			keys = append(keys, task.Ticket)
+		}
+	}
+	snapshot.JiraError = service.Jira.Error()
+	service.Jira.Refresh(keys, service.jiraClient(), false)
+}
+
+func (service *Service) jiraClient() *jira.Client {
+	user := service.Config.JiraUser
+	if user == "" {
+		user = service.Config.BitbucketUser
+	}
+	return &jira.Client{Site: service.Config.JiraSite, User: user, Token: jira.KeychainToken(user)}
+}
+
+// RefreshJira fetches every ticket again now (after the Jira settings change).
+func (service *Service) RefreshJira() error {
+	snapshot, err := service.Snapshot()
+	if err != nil || service.Jira == nil || service.Config.JiraSite == "" {
+		return err
+	}
+	var keys []string
+	seen := map[string]bool{}
+	for _, task := range snapshot.Tasks {
+		if task.Ticket != "" && !seen[task.Ticket] {
+			seen[task.Ticket] = true
+			keys = append(keys, task.Ticket)
+		}
+	}
+	service.Jira.Refresh(keys, service.jiraClient(), true)
+	return nil
+}
+
+// DetectJiraSite finds the Jira site from names around the repos (email domain, folders, remote
+// owners), saves it in the config and returns it.
+func (service *Service) DetectJiraSite() (string, error) {
+	snapshot, err := service.Snapshot()
+	if err != nil {
+		return "", err
+	}
+	client := service.jiraClient()
+	var keys []string
+	seen := map[string]bool{}
+	for _, task := range snapshot.Tasks {
+		if task.Ticket != "" && !seen[task.Ticket] {
+			seen[task.Ticket] = true
+			keys = append(keys, task.Ticket)
+		}
+	}
+	var candidates []string
+	add := func(text string) {
+		for _, part := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool { return r == '/' || r == '.' || r == '_' || r == ' ' }) {
+			candidates = append(candidates, part)
+			if first, _, ok := strings.Cut(part, "-"); ok {
+				candidates = append(candidates, first)
+			}
+		}
+	}
+	if _, domain, ok := strings.Cut(client.User, "@"); ok {
+		label, _, _ := strings.Cut(domain, ".")
+		add(label)
+	}
+	for _, root := range service.roots() {
+		add(strings.TrimPrefix(root, os.Getenv("HOME")))
+	}
+	for _, repo := range snapshot.Repos {
+		add(repo.Name)
+		if out, err := exec.Command(service.Git.Bin, "-C", repo.Path, "remote", "get-url", "origin").Output(); err == nil {
+			if remote, ok := prs.ParseRemote(string(out)); ok {
+				add(remote.Owner)
+			}
+		}
+	}
+	site, err := jira.DetectSite(candidates, keys, client.User, client.Token)
+	if err != nil {
+		return "", err
+	}
+	service.Config.JiraSite = site
+	if err := config.Save(service.Config); err != nil {
+		return "", err
+	}
+	_ = service.RefreshJira()
+	return site, nil
 }
