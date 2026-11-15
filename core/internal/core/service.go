@@ -34,6 +34,9 @@ type Service struct {
 	cachedWorkspaces []cmux.Workspace
 	cmuxErr          error
 	haveWorkspaces   bool
+
+	decorateMutex sync.Mutex
+	decorated     map[string]decoration // what wk last showed in each cmux workspace, by ID
 }
 
 // CmuxClient is the subset of cmux used by core (faked in tests).
@@ -46,6 +49,10 @@ type CmuxClient interface {
 	FocusSurface(workspace, surfaceID string) error
 	CreateWorkspace(name, cwd, command, layout string) (string, error)
 	NewSurface(workspace, command string) error
+	SetDescription(workspace, text string) error
+	SetColor(workspace, color string) error
+	SetStatus(workspace, key string, status cmux.Status) error
+	Binary() string
 }
 
 func New() (*Service, error) {

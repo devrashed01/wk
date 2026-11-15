@@ -158,3 +158,34 @@ func paneSpecs(layout config.Layout, claudeCmd, setupCmd, serverCmd string) []cm
 	specs[0].Command = joinCommands(setupCmd, specs[0].Command)
 	return specs
 }
+
+// withProgress makes a setup command report each step to cmux's sidebar progress bar and clear
+// it when all steps pass. On failure the bar stays on the step that failed. Only && and plain
+// redirects are used, so it works in zsh, bash and fish alike.
+func withProgress(bin, setup string) string {
+	if strings.TrimSpace(setup) == "" || bin == "" {
+		return setup
+	}
+	steps := []string{setup}
+	if !strings.Contains(setup, "||") && !strings.Contains(setup, ";") {
+		steps = strings.Split(setup, " && ")
+	}
+	cmux := shellQuote(bin)
+	quiet := " >/dev/null 2>&1"
+	parts := make([]string, 0, len(steps)*2+1)
+	for index, step := range steps {
+		label := fmt.Sprintf("Setup %d/%d · %s", index+1, len(steps), progressLabel(step))
+		fraction := fmt.Sprintf("%.2f", float64(index)/float64(len(steps)))
+		parts = append(parts, cmux+" set-progress "+fraction+" --label "+shellQuote(label)+quiet, strings.TrimSpace(step))
+	}
+	parts = append(parts, cmux+" clear-progress"+quiet)
+	return strings.Join(parts, " && ")
+}
+
+func progressLabel(step string) string {
+	step = strings.Join(strings.Fields(step), " ")
+	if runes := []rune(step); len(runes) > 40 {
+		return string(runes[:39]) + "…"
+	}
+	return step
+}

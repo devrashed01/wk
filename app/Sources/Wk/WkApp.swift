@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.setActivationPolicy(.accessory)
         PaletteController.shared.attach(store)
         ActivityHUD.shared.attach(store)
+        CmuxPanel.updateIfInstalled()
         hotKey = HotKey { Task { @MainActor in PaletteController.shared.toggle() } }
         applyHotKey()
         if Bundle.main.bundleIdentifier != nil {
@@ -149,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     /// wk://palette · wk://new · wk://sessions · wk://cleanup · wk://open?task=<id>
+    /// wk://task?path=<dir> (select the task there) · wk://note?path=<dir> (edit its note), used by wk's cmux panel
     @objc private func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let text = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URL(string: text) else { return }
         let controller = PaletteController.shared
@@ -160,6 +162,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         case "open":
             let taskID = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "task" }?.value
             if let taskID, let task = store.task(taskID) { store.open(task) } else { controller.show() }
+        case "task", "note":
+            let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "path" }?.value ?? ""
+            guard let task = store.task(atDirectory: path) else { controller.show(tab: .tasks); break }
+            store.selectedTaskID = task.id
+            controller.show(overlay: url.host == "note" ? .prompt(.note(taskID: task.id, current: task.note ?? "")) : nil, tab: .tasks)
         default: controller.show(tab: .tasks)
         }
     }

@@ -362,6 +362,7 @@ public struct WkConfig: Codable, Hashable, Sendable {
     public var gitBin: String?
     public var hotkey: String?
     public var autoStartClaude: Bool?
+    public var plainCmux: Bool?
     public var labelStripPrefixes: [String]?
     public var layout: LayoutConfig?
     public var repos: [String: RepoSettings]?

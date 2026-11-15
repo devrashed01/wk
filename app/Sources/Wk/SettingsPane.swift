@@ -2,7 +2,7 @@ import SwiftUI
 import WkKit
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, appearance, claude, layout, scanning, repos
+    case general, appearance, claude, cmux, layout, scanning, repos
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "General"
         case .appearance: "Appearance"
         case .claude: "Claude"
+        case .cmux: "cmux"
         case .layout: "Layout"
         case .scanning: "Scanning"
         case .repos: "Repos"
@@ -22,6 +23,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .appearance: "paintbrush"
         case .claude: "sparkles"
+        case .cmux: "sidebar.right"
         case .layout: "rectangle.split.2x1"
         case .scanning: "folder.badge.gearshape"
         case .repos: "shippingbox"
@@ -34,6 +36,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: "hotkey shortcut option space open launch login startup notify notification alert cmux terminal iterm fallback update version"
         case .appearance: "blur backdrop dim dimming dark transparency look theme"
         case .claude: "start claude automatically auto resume tokens single pane zsh"
+        case .cmux: "cmux sidebar panel note description color colour status pill git progress setup right"
         case .layout: "layout panes pane split grid columns rows tabs arrangement main size server git shell command workspace"
         case .scanning: "scan folders roots base branch strip prefix label recent days"
         case .repos: "repo repository server command dev base branch setup install env worktree single pane layout"
@@ -50,6 +53,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .general: .gray
         case .appearance: .pink
         case .claude: .orange
+        case .cmux: .teal
         case .layout: .purple
         case .scanning: .blue
         case .repos: .green
@@ -138,6 +142,7 @@ struct SettingsPane: View {
         case .general: GeneralSettings()
         case .appearance: AppearanceSettings()
         case .claude: ClaudeSettings(draft: draft)
+        case .cmux: CmuxSettings(draft: draft)
         case .layout: LayoutSettings(draft: draft)
         case .scanning: ScanningSettings(draft: draft)
         case .repos: RepoSettingsPage(draft: draft)
@@ -271,6 +276,46 @@ private struct ClaudeSettings: View {
                 Hint("Off: wk types `claude` or `claude --resume …` in the tab and you press Enter to run it. Resuming re-reads the whole conversation, so it costs tokens. Needs zsh; in other shells Claude always starts.")
             }
             Hint("Tip: ↵ opens the panes from Settings → Layout; ⌘↵ opens Claude only. To always open Claude only for a repo, use Settings → Repos.")
+        }
+    }
+}
+
+private struct CmuxSettings: View {
+    @Binding var draft: WkConfig
+    @State private var panelInstalled = CmuxPanel.isInstalled
+    @State private var message: String?
+
+    var body: some View {
+        SettingsPage(category: .cmux, subtitle: "Make cmux's sidebar show what wk knows about each task.") {
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Show wk info in cmux's sidebar", isOn: Binding(
+                    get: { draft.plainCmux != true },
+                    set: { draft.plainCmux = $0 ? nil : true }))
+                Hint("Under each task's workspace: its wk note, a color per repo and a git pill (uncommitted files, ↑ unpushed, ↓ to pull, merged). New worktrees show a progress bar while setup runs. Descriptions and colors you set in cmux yourself are left alone. Off removes what wk added.")
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("wk panel") {
+                    Chip(text: panelInstalled ? "installed" : "not installed", color: panelInstalled ? .green : .secondary)
+                }
+                Hint("A panel for cmux's right sidebar: the current task's note (click to edit it in wk), branch, PR and setup progress, plus every workspace with its note. Uses cmux's custom sidebars (beta).")
+                HStack(spacing: 8) {
+                    if panelInstalled {
+                        Button("Show in cmux") { message = CmuxPanel.show() }
+                        Button("Remove") {
+                            CmuxPanel.uninstall()
+                            panelInstalled = CmuxPanel.isInstalled
+                        }
+                    } else {
+                        Button("Install panel") {
+                            message = CmuxPanel.install()
+                            panelInstalled = CmuxPanel.isInstalled
+                            if panelInstalled { message = CmuxPanel.show() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                if let message { Hint(message) }
+            }
         }
     }
 }

@@ -152,6 +152,17 @@ final class AppStore {
 
     func task(_ id: String) -> WkTask? { (snapshot.tasks ?? []).first { $0.id == id } }
 
+    /// The task whose worktree holds `directory` (the deepest one, so nested worktrees win).
+    func task(atDirectory directory: String) -> WkTask? {
+        let target = (directory as NSString).resolvingSymlinksInPath
+        return (snapshot.tasks ?? [])
+            .filter { task in
+                guard let path = task.path, !path.isEmpty else { return false }
+                return target == path || target.hasPrefix(path + "/")
+            }
+            .max { ($0.path ?? "").count < ($1.path ?? "").count }
+    }
+
     func session(_ id: String) -> Session? {
         sessions.first { $0.id == id } ?? (snapshot.sessions ?? []).first { $0.id == id }
             ?? (snapshot.tasks ?? []).lazy.flatMap(\.sessions).first { $0.id == id }

@@ -178,7 +178,11 @@ func (service *Service) openAt(target openTarget) (OpenResult, error) {
 	if settings.NoLayout || target.single {
 		panes = config.Layout{Panes: []config.Pane{{Kind: "claude"}}}
 	}
-	specs := paneSpecs(panes, claudeCmd, target.setupCmd, settings.ServerCmd)
+	setupCmd := target.setupCmd
+	if !service.Config.PlainCmux {
+		setupCmd = withProgress(service.Cmux.Binary(), setupCmd)
+	}
+	specs := paneSpecs(panes, claudeCmd, setupCmd, settings.ServerCmd)
 	layout := ""
 	if len(specs) > 1 {
 		layout = cmux.BuildLayout(panes.Arrange, panes.MainSize, specs)

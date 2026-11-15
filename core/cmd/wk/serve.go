@@ -120,7 +120,11 @@ func dispatch(service *core.Service, req request, progress core.Progress) (any, 
 				return nil, err
 			}
 		}
-		return service.SnapshotScoped(scope)
+		snapshot, err := service.SnapshotScoped(scope)
+		if err == nil && snapshot.CmuxRunning {
+			go service.DecorateCmux(snapshot.Tasks)
+		}
+		return snapshot, err
 	case "open":
 		args, err := decode[core.OpenRequest](req.Args)
 		if err != nil {

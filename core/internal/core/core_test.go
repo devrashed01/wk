@@ -20,12 +20,13 @@ import (
 )
 
 type fakeCmux struct {
-	workspaces []cmux.Workspace
-	created    []string // name|cwd|layout|command
-	selected   []string
-	closed     []string
-	surfaces   []string
-	missing    bool // cmux not installed (and so not running)
+	workspaces  []cmux.Workspace
+	created     []string // name|cwd|layout|command
+	selected    []string
+	closed      []string
+	surfaces    []string
+	missing     bool     // cmux not installed (and so not running)
+	decorations []string // workspace|what|value
 }
 
 func (fake *fakeCmux) Workspaces() ([]cmux.Workspace, error) {
@@ -43,6 +44,19 @@ func (fake *fakeCmux) NewSurface(workspace, command string) error {
 	fake.surfaces = append(fake.surfaces, workspace+"|"+command)
 	return nil
 }
+func (fake *fakeCmux) SetDescription(workspace, text string) error {
+	fake.decorations = append(fake.decorations, workspace+"|description|"+text)
+	return nil
+}
+func (fake *fakeCmux) SetColor(workspace, color string) error {
+	fake.decorations = append(fake.decorations, workspace+"|color|"+color)
+	return nil
+}
+func (fake *fakeCmux) SetStatus(workspace, key string, status cmux.Status) error {
+	fake.decorations = append(fake.decorations, workspace+"|status|"+status.Value)
+	return nil
+}
+func (fake *fakeCmux) Binary() string { return "cmux" }
 func (fake *fakeCmux) CreateWorkspace(name, cwd, command, layout string) (string, error) {
 	fake.created = append(fake.created, name+"|"+cwd+"|"+layout+"|"+command)
 	return "workspace:9", nil

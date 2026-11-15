@@ -57,16 +57,21 @@ type Workspace struct {
 	Cwd      string `json:"cwd"`
 	Ports    []int  `json:"ports,omitempty"`
 	Selected bool   `json:"selected"`
+	// Description and Color are what cmux shows under the title and on the tab ("" when unset).
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color,omitempty"`
 }
 
 type rawWorkspace struct {
-	ID             string `json:"id"`
-	Ref            string `json:"ref"`
-	Title          string `json:"title"`
-	CustomTitle    string `json:"custom_title"`
-	Cwd            string `json:"current_directory"`
-	ListeningPorts []int  `json:"listening_ports"`
-	Selected       bool   `json:"selected"`
+	ID             string  `json:"id"`
+	Ref            string  `json:"ref"`
+	Title          string  `json:"title"`
+	CustomTitle    string  `json:"custom_title"`
+	Cwd            string  `json:"current_directory"`
+	ListeningPorts []int   `json:"listening_ports"`
+	Selected       bool    `json:"selected"`
+	Description    *string `json:"description"`
+	CustomColor    *string `json:"custom_color"`
 }
 
 // Workspaces lists workspaces in the cmux window. Returns an error when cmux is not running.
@@ -93,9 +98,65 @@ func ParseWorkspaces(data []byte) ([]Workspace, error) {
 		}
 		workspaces = append(workspaces, Workspace{
 			ID: raw.ID, Ref: raw.Ref, Title: title, Cwd: raw.Cwd, Ports: raw.ListeningPorts, Selected: raw.Selected,
+			Description: deref(raw.Description), Color: deref(raw.CustomColor),
 		})
 	}
 	return workspaces, nil
+}
+
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// Binary is the cmux CLI path, for commands that run inside a workspace's terminal.
+func (client Client) Binary() string { return client.Bin }
+
+// SetDescription shows text under the workspace title in cmux's sidebar; "" clears it.
+func (client Client) SetDescription(workspace, text string) error {
+	if text == "" {
+		_, err := client.run("workspace-action", "--workspace", workspace, "--action", "clear-description")
+		return err
+	}
+	_, err := client.run("workspace-action", "--workspace", workspace, "--action", "set-description", "--description", text)
+	return err
+}
+
+// SetColor tints the workspace tab (#RRGGBB or a cmux color name); "" clears it.
+func (client Client) SetColor(workspace, color string) error {
+	if color == "" {
+		_, err := client.run("workspace-action", "--workspace", workspace, "--action", "clear-color")
+		return err
+	}
+	_, err := client.run("workspace-action", "--workspace", workspace, "--action", "set-color", "--color", color)
+	return err
+}
+
+// Status is one pill in a workspace's sidebar row.
+type Status struct {
+	Value    string
+	Icon     string
+	Color    string
+	Priority int
+}
+
+// SetStatus sets the pill under key; a zero Status (empty value) removes it.
+func (client Client) SetStatus(workspace, key string, status Status) error {
+	if status.Value == "" {
+		_, err := client.run("clear-status", key, "--workspace", workspace)
+		return err
+	}
+	args := []string{"set-status", key, status.Value, "--workspace", workspace, "--priority", fmt.Sprint(status.Priority)}
+	if status.Icon != "" {
+		args = append(args, "--icon", status.Icon)
+	}
+	if status.Color != "" {
+		args = append(args, "--color", status.Color)
+	}
+	_, err := client.run(args...)
+	return err
 }
 
 // AgentSession is one Claude session record from ~/.cmuxterm/claude-hook-sessions.json.

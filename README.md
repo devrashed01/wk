@@ -17,6 +17,7 @@ You stop hunting for branch names and lost Claude sessions. Press a hotkey, type
 - **New task**: start from the base branch, a local or remote branch, or another worktree. It can be created in place or as a sibling worktree (`<repo>-<slug>`). For worktrees, `.env*` files are copied and dependencies installed automatically.
 - **Remove**: removes a worktree, branch, remote branch, cmux workspace or sessions, with safety checks. Before anything with uncommitted or unpushed work is removed, you must type the branch name. Sessions go to a trash you can restore from (Sessions tab → Include trash → **⌘⌫**, or `wk restore <id>`).
 - **Cleanup** finds merged branches, branches whose upstream is gone, missing worktrees, stale branches and orphaned sessions.
+- **In cmux**, each task's workspace shows its wk note under the title, a color per repo and a git pill (uncommitted files, ↑ unpushed, ↓ to pull, merged). New worktrees show a progress bar while setup runs. Settings → cmux also installs a **wk panel** for cmux's right sidebar: the current task's note (click to edit it in wk), branch, PR and progress, plus every workspace with its note. Turn it all off with `plain_cmux = true`.
 - The menu-bar icon shows how many Claude sessions are waiting for you, and a notification fires when one finishes.
 - When a newer release exists, an **Update available** chip appears at the top left. Nothing installs by itself; you can turn the daily check off in Settings.
 - Every action is also available in the terminal. Run `wk help` for the list; add `--json` to any command for machine-readable output.
@@ -69,6 +70,7 @@ recent_days = 30                 # how far back the Recent list goes
 hotkey = "option+space"
 auto_start_claude = false        # false: only type `claude` / `claude --resume` in cmux, Enter runs it (resuming costs tokens)
 label_strip_prefixes = ["acme-"] # shorten repo labels: "acme-web" -> "web"
+plain_cmux = false               # true: don't show notes, repo colors and git status in cmux's sidebar
 
 [layout]                         # panes of a new cmux workspace (default: Claude | server / git)
 arrange = "main-left"            # main-left, main-right, main-top, columns, rows, grid, tabs
